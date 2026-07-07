@@ -32,6 +32,7 @@ const baseSchema = z.object({
   reference: z.string().optional(),
   issueDate: z.string().optional(),
   expiryDate: z.string().optional(),
+  cost: z.number().nonnegative().optional(),
   renewalInProgress: z.boolean().optional(),
   notes: z.string().optional(),
 });

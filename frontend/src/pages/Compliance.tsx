@@ -39,6 +39,7 @@ export default function Compliance() {
     { name: 'reference', label: 'Reference / policy no.', half: true },
     { name: 'issueDate', label: 'Issue date', type: 'date', half: true },
     { name: 'expiryDate', label: 'Expiry date', type: 'date', half: true },
+    { name: 'cost', label: 'Renewal fee (AED) — compliance cost', type: 'number', half: true },
     { name: 'renewalInProgress', label: 'Renewal in progress', type: 'checkbox' },
     { name: 'notes', label: 'Notes', type: 'multiline' },
   ];

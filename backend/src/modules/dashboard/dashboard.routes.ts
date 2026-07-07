@@ -4,6 +4,7 @@ import { prisma } from '../../lib/prisma';
 import { authorize } from '../../middleware/authorize';
 import { asyncHandler } from '../../middleware/errorHandler';
 import { computeFleetAssets, resolvePeriod } from '../costs/costs.service';
+import { computeCostTrends, computeFleetProfile } from './dashboard.analytics';
 import { Forbidden } from '../../lib/errors';
 
 export const dashboardRouter = Router();
@@ -44,6 +45,7 @@ dashboardRouter.get(
       computeFleetAssets(),
       prisma.vendorInvoice.aggregate({ where: { isActive: true, status: { in: ['unpaid', 'partial'] } }, _sum: { amount: true, paidAmount: true } }),
     ]);
+    const profile = await computeFleetProfile();
     const fleetUtilization = activeVehicles > 0 ? Math.round((allocatedVehicles.length / activeVehicles) * 100) : 0;
     const driverUtilization = activeDrivers > 0 ? Math.round((allocatedDrivers.length / activeDrivers) * 100) : 0;
     const payablesOutstanding = Number(payablesOpen._sum.amount ?? 0) - Number(payablesOpen._sum.paidAmount ?? 0);
@@ -71,7 +73,19 @@ dashboardRouter.get(
         totalDepreciation: assets.totalDepreciation,
       },
       payablesOutstanding: +payablesOutstanding.toFixed(2),
+      fleetAge: profile.fleetAge,
+      experience: profile.experience,
     });
+  })
+);
+
+// Monthly cost trends (fuel / maintenance / compliance) for trend + YoY charts.
+dashboardRouter.get(
+  '/cost-trends',
+  authorize('dashboard', 'read'),
+  asyncHandler(async (req, res) => {
+    const months = Math.min(36, Math.max(6, Number(req.query.months) || 24));
+    res.json(await computeCostTrends(months));
   })
 );
 

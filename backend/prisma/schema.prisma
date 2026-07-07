@@ -413,6 +413,7 @@ model ComplianceDocument {
   reference   String?       // policy/registration number
   issueDate   DateTime?     @map("issue_date")
   expiryDate  DateTime?     @map("expiry_date")
+  cost        Decimal?      @db.Decimal(12, 2) // renewal fee → compliance cost
   fileKey     String?       @map("file_key") // uploaded scan
   renewalInProgress Boolean @default(false) @map("renewal_in_progress")
   notes       String?
