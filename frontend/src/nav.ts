@@ -10,6 +10,7 @@ import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import PaidIcon from '@mui/icons-material/Paid';
 import AirportShuttleIcon from '@mui/icons-material/AirportShuttle';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import SettingsIcon from '@mui/icons-material/Settings';
 import HistoryIcon from '@mui/icons-material/History';
@@ -37,6 +38,7 @@ export const NAV: NavItem[] = [
   { key: 'driver', path: '/my-vehicle', labelKey: 'nav.driver', icon: PhoneAndroidIcon, driverOnly: true },
   { key: 'dashboard', path: '/', labelKey: 'nav.dashboard', icon: DashboardIcon, requires: 'dashboard:read' },
   { key: 'availability', path: '/availability', labelKey: 'nav.availability', icon: EventAvailableIcon, requires: 'availability:read' },
+  { key: 'allocation', path: '/allocation', labelKey: 'nav.allocation', icon: AssignmentTurnedInIcon, requires: 'allocations:read' },
   { key: 'vehicles', path: '/vehicles', labelKey: 'nav.vehicles', icon: DirectionsCarIcon, requires: 'vehicles:read' },
   { key: 'drivers', path: '/drivers', labelKey: 'nav.drivers', icon: PersonIcon, requires: 'drivers:read' },
   { key: 'fuel', path: '/fuel', labelKey: 'nav.fuel', icon: LocalGasStationIcon, requires: 'fuel:read' },

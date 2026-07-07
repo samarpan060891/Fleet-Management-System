@@ -21,6 +21,7 @@ const en: Dict = {
   'nav.costs': 'Costs & TCO',
   'nav.transport': 'Staff Transport',
   'nav.availability': 'Availability',
+  'nav.allocation': 'Fleet Allocation',
   'nav.reports': 'Reports',
   'nav.settings': 'Settings',
   'nav.audit': 'Audit Log',

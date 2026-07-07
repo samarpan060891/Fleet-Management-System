@@ -35,6 +35,7 @@ export const RESOURCES = [
   'incidents',
   'costs',
   'transport', // routes, mapping
+  'allocations', // fleet allocation / dispatch
   'attendance',
   'availability',
   'alerts',
@@ -119,25 +120,29 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'employees:create',
     'employees:update',
     ...crud('transport'),
+    ...crud('allocations'),
     ...crud('attendance'),
     ...read('assignments'),
     ...read('alerts'),
     ...read('availability'),
   ],
 
-  // Read-only fleet-availability board.
-  OPS_DELIVERY: [...base, ...read('availability'), ...read('vehicles')],
+  // Read-only fleet-availability board + can see allocations.
+  OPS_DELIVERY: [...base, ...read('availability'), ...read('vehicles'), ...read('allocations')],
 
-  // Availability board + high-level availability KPIs.
+  // Availability board + high-level availability KPIs + manages allocations.
   DELIVERY_MANAGER: [
     ...base,
     ...read('availability'),
     ...read('vehicles'),
+    ...read('drivers'),
+    ...read('stores'),
+    ...crud('allocations'),
     ...read('reports'),
   ],
 
-  // Read-only fleet-availability board.
-  WAREHOUSE_MANAGER: [...base, ...read('availability'), ...read('vehicles')],
+  // Read-only fleet-availability board + allocations.
+  WAREHOUSE_MANAGER: [...base, ...read('availability'), ...read('vehicles'), ...read('allocations')],
 
   // Mobile screen: own vehicle, own docs, mapped staff, mark attendance.
   // Ownership is enforced at the route/service layer (self-scoping).
@@ -161,6 +166,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     ...read('odometer'),
     ...read('costs'),
     ...read('availability'),
+    ...read('allocations'),
     ...read('reports'),
     ...read('alerts'),
     ...read('audit'),

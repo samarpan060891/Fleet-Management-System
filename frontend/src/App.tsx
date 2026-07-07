@@ -24,6 +24,7 @@ import Stores from './pages/Stores';
 import Employees from './pages/Employees';
 import Users from './pages/Users';
 import Odometer from './pages/Odometer';
+import Allocation from './pages/Allocation';
 import Placeholder from './pages/Placeholder';
 
 function Loader() {
@@ -56,6 +57,7 @@ export default function App() {
         <Route path="/" element={user.role === 'DRIVER' ? <Navigate to="/my-vehicle" replace /> : <Dashboard />} />
         <Route path="/my-vehicle" element={<DriverScreen />} />
         <Route path="/availability" element={<Availability />} />
+        <Route path="/allocation" element={<Allocation />} />
         <Route path="/vehicles" element={<Vehicles />} />
         <Route path="/drivers" element={<Drivers />} />
         <Route path="/fuel" element={<Fuel />} />

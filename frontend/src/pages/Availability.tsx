@@ -9,7 +9,12 @@ interface BoardVehicle {
   assignedDriver: string | null; complianceBlocked: boolean; blockingDocs: string[]; canPlan: boolean;
   seatingCapacity: number | null; payloadKg: number | null;
   store: { code: string; name: string } | null;
+  allocationType: string | null; allocationReference: string | null;
 }
+
+const ALLOC_LABEL: Record<string, string> = {
+  customer_delivery: 'Customer delivery', store_delivery: 'Store delivery', staff_transport: 'Staff pick & drop',
+};
 
 const BUCKET_LABEL: Record<string, string> = { free: 'Free', committed: 'Committed', workshop: 'Workshop / VOR', blocked: 'Compliance-blocked' };
 const BUCKET_COLOR: Record<string, string> = { free: '#2e7d32', committed: '#1565c0', workshop: '#ed9c28', blocked: '#c62828' };
@@ -56,7 +61,8 @@ export default function Availability() {
                     <Typography variant="caption" color="text.secondary" display="block">
                       {v.vehicleType} · {v.store?.code ?? 'No depot'}
                     </Typography>
-                    {v.assignedDriver && <Chip size="small" label={v.assignedDriver} sx={{ mt: 0.5 }} variant="outlined" />}
+                    {v.assignedDriver && <Chip size="small" label={v.assignedDriver} sx={{ mt: 0.5, mr: 0.5 }} variant="outlined" />}
+                    {v.allocationType && <Chip size="small" color="primary" label={ALLOC_LABEL[v.allocationType] ?? v.allocationType} sx={{ mt: 0.5 }} />}
                   </CardContent>
                 </Card>
               ))}

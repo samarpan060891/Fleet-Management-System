@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import dayjs from 'dayjs';
 import { DocType } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { authorize } from '../../middleware/authorize';
@@ -16,12 +17,18 @@ availabilityRouter.get(
   authorize('availability', 'read'),
   asyncHandler(async (req, res) => {
     const now = new Date();
+    const today = dayjs().startOf('day').toDate();
     const vehicles = await prisma.vehicle.findMany({
       where: { isActive: true, status: { not: 'disposed' } },
       include: {
         store: { select: { code: true, name: true, emirate: true } },
         documents: { where: { isActive: true, docType: { in: BLOCKING_DOCS } }, select: { docType: true, expiryDate: true } },
         assignments: { where: { effectiveTo: null }, include: { driver: { select: { fullName: true } } }, take: 1 },
+        // Today's live allocation (what the vehicle is doing).
+        allocations: {
+          where: { isActive: true, date: today, status: { in: ['planned', 'active'] } },
+          orderBy: { createdAt: 'desc' }, take: 1,
+        },
       },
       orderBy: { plateNumber: 'asc' },
     });
@@ -29,11 +36,12 @@ availabilityRouter.get(
     const board = vehicles.map((v) => {
       const expired = v.documents.filter((d) => d.expiryDate && d.expiryDate < now);
       const complianceBlocked = expired.length > 0;
+      const allocation = v.allocations[0] ?? null;
       // Availability buckets for the planning board.
       let bucket: 'free' | 'committed' | 'workshop' | 'blocked';
       if (complianceBlocked) bucket = 'blocked';
       else if (v.status === 'in_workshop' || v.status === 'vor') bucket = 'workshop';
-      else if (v.assignments.length > 0 && v.status === 'active') bucket = 'committed';
+      else if (allocation || (v.assignments.length > 0 && v.status === 'active')) bucket = 'committed';
       else bucket = 'free';
 
       return {
@@ -45,6 +53,8 @@ availabilityRouter.get(
         seatingCapacity: v.seatingCapacity,
         payloadKg: v.payloadKg,
         assignedDriver: v.assignments[0]?.driver?.fullName ?? null,
+        allocationType: allocation?.type ?? null,
+        allocationReference: allocation?.reference ?? null,
         complianceBlocked,
         blockingDocs: expired.map((d) => d.docType),
         bucket,
