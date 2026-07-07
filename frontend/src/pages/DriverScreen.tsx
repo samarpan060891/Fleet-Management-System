@@ -8,16 +8,33 @@ import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import { api } from '../api/client';
 import { PageHeader } from '../components/ui';
 import { fmtDate, fmtKm } from '../i18n';
+import { useAuth } from '../auth/AuthContext';
 
 interface Staff { employeeId: string; name: string; pickupPoint: string | null; status: string | null }
 interface RouteT { id: string; code: string; name: string; scheduledTime: string | null; staff: Staff[] }
 
 export default function DriverScreen() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const isDriver = user?.role === 'DRIVER';
   const { data, isLoading } = useQuery({
     queryKey: ['driver-screen'],
     queryFn: async () => (await api.get('/dashboard/driver')).data,
+    enabled: isDriver,
   });
+
+  // This screen is the driver's personal mobile view; nothing to show for other roles.
+  if (!isDriver) {
+    return (
+      <Box sx={{ maxWidth: 640, mx: 'auto' }}>
+        <PageHeader title="My Vehicle" subtitle="Driver mobile screen" />
+        <Alert severity="info">
+          This screen is for drivers — it shows a driver's own assigned vehicle, documents and route staff.
+          Sign in with a driver account (e.g. <strong>driver@fleet.local</strong>) to use it.
+        </Alert>
+      </Box>
+    );
+  }
   const [marks, setMarks] = useState<Record<string, 'present' | 'absent'>>({});
 
   const save = useMutation({

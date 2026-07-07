@@ -23,11 +23,13 @@ export interface NavItem {
   icon: SvgIconComponent;
   // Show if the user holds this permission (or always if undefined).
   requires?: string;
+  // Only visible to the Driver role (the mobile "My Vehicle" screen).
+  driverOnly?: boolean;
 }
 
 // Nav is filtered client-side by permissions; the server still enforces RBAC.
 export const NAV: NavItem[] = [
-  { key: 'driver', path: '/my-vehicle', labelKey: 'nav.driver', icon: PhoneAndroidIcon, requires: 'attendance:create' },
+  { key: 'driver', path: '/my-vehicle', labelKey: 'nav.driver', icon: PhoneAndroidIcon, driverOnly: true },
   { key: 'dashboard', path: '/', labelKey: 'nav.dashboard', icon: DashboardIcon, requires: 'dashboard:read' },
   { key: 'availability', path: '/availability', labelKey: 'nav.availability', icon: EventAvailableIcon, requires: 'availability:read' },
   { key: 'vehicles', path: '/vehicles', labelKey: 'nav.vehicles', icon: DirectionsCarIcon, requires: 'vehicles:read' },
