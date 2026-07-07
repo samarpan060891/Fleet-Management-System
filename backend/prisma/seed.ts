@@ -12,6 +12,14 @@ const daysAgo = (n: number) => dayjs().subtract(n, 'day').toDate();
 async function main() {
   console.log('Seeding database…');
 
+  // Idempotency guard: skip if a demo fleet already exists (safe re-runs).
+  const existing = await prisma.vehicle.count();
+  if (existing > 0) {
+    console.log(`Database already has ${existing} vehicles — skipping seed.`);
+    await ensureSettingsSeeded();
+    return;
+  }
+
   // --- Settings + PM schedules ---
   await ensureSettingsSeeded();
   for (const [vt, cfg] of Object.entries(DEFAULT_PM_SCHEDULES)) {

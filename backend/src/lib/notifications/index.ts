@@ -17,4 +17,4 @@ export async function notify(msg: NotificationMessage): Promise<void> {
   }
 }
 
-export { NotificationMessage };
+export type { NotificationMessage };

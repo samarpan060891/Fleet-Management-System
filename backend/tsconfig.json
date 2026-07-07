@@ -11,10 +11,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "isolatedModules": true,
     "declaration": false,
     "sourceMap": true,
     "types": ["node", "jest"]
   },
-  "include": ["src/**/*.ts", "prisma/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
