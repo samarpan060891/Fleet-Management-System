@@ -1,0 +1,869 @@
+// UAE Fleet Management System — Prisma schema
+// Three cooperating domains sharing one vehicle/driver master:
+//   1. Fleet & Asset Core   2. Staff Transport   3. Fleet Availability (read-only)
+//
+// Conventions (see /docs/DATA_MODEL.md):
+//  - All entities use uuid id, created_at/updated_at, created_by/updated_by,
+//    and a soft-delete `is_active` flag where deletion must be reversible.
+//  - Reference/master data is grouped under "Masters".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  FLEET_MANAGER
+  WORKSHOP
+  COMPLIANCE
+  FINANCE
+  TRANSPORT_COORDINATOR
+  OPS_DELIVERY
+  DELIVERY_MANAGER
+  WAREHOUSE_MANAGER
+  DRIVER
+  MANAGEMENT
+}
+
+enum VehicleType {
+  light
+  sedan
+  pickup
+  truck_3_7t
+  bus
+  van
+}
+
+enum Ownership {
+  owned
+  leased
+  rented
+}
+
+enum VehicleStatus {
+  active
+  in_workshop
+  vor // vehicle off road
+  idle
+  disposed
+}
+
+enum VendorType {
+  workshop
+  tyre_supplier
+  insurance
+  fuel_supplier
+  spare_parts
+  lessor
+  other
+}
+
+enum FuelChannel {
+  vip_kit
+  fuel_buddy
+  cash
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+enum JobType {
+  scheduled
+  breakdown
+  accident
+  tyre
+}
+
+enum JobStatus {
+  open
+  in_progress
+  closed
+}
+
+enum ClaimStatus {
+  reported
+  under_review
+  approved
+  rejected
+  settled
+}
+
+enum FineType {
+  salik
+  speeding
+  parking
+  other
+}
+
+enum FineStatus {
+  unpaid
+  paid
+}
+
+enum DisposalMethod {
+  sold
+  scrapped
+  returned_to_lessor
+}
+
+enum DocumentEntity {
+  vehicle
+  driver
+}
+
+// Compliance document categories that carry expiry dates.
+enum DocType {
+  // vehicle
+  mulkiya // registration
+  insurance
+  tasjeel // technical inspection
+  lease
+  warranty
+  // driver
+  licence
+  emirates_id
+  visa
+  passport
+}
+
+enum AlertSeverity {
+  green
+  amber
+  red
+}
+
+enum AlertCategory {
+  compliance_expiry
+  maintenance_due
+  fuel_anomaly
+  fine_aging
+  salik_low
+  downtime_vor
+  contract_warranty
+  transport
+}
+
+enum AttendanceStatus {
+  present
+  absent
+}
+
+enum AttendanceMarkedBy {
+  coordinator
+  driver
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  fullName     String   @map("full_name")
+  role         Role
+  isActive     Boolean  @default(true) @map("is_active")
+  // Optional link to a Driver record for the Driver role (mobile screen).
+  driverId     String?  @unique @map("driver_id")
+  driver       Driver?  @relation(fields: [driverId], references: [id])
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  createdBy    String?  @map("created_by")
+  updatedBy    String?  @map("updated_by")
+
+  @@index([role])
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Masters
+// ---------------------------------------------------------------------------
+
+model Vehicle {
+  id              String        @id @default(uuid())
+  plateNumber     String        @map("plate_number")
+  plateEmirate    String        @map("plate_emirate")
+  plateCategory   String?       @map("plate_category")
+  make            String
+  model           String
+  year            Int
+  vin             String?       @map("vin")
+  engineNumber    String?       @map("engine_number")
+  colour          String?
+  vehicleType     VehicleType   @map("vehicle_type")
+  bodyType        String?       @map("body_type")
+  seatingCapacity Int?          @map("seating_capacity")
+  payloadKg       Int?          @map("payload_kg")
+
+  ownership       Ownership     @default(owned)
+  leaseStart      DateTime?     @map("lease_start")
+  leaseEnd        DateTime?     @map("lease_end")
+  monthlyCost     Decimal?      @map("monthly_cost") @db.Decimal(12, 2)
+  lessorId        String?       @map("lessor_id")
+  lessor          Vendor?       @relation("VehicleLessor", fields: [lessorId], references: [id])
+
+  gpsUnitId       String?       @map("gps_unit_id")
+  fuelKitId       String?       @map("fuel_kit_id") // VIP fuel kit id
+
+  currentOdometer Int           @default(0) @map("current_odometer")
+
+  storeId         String?       @map("store_id")
+  store           Store?        @relation(fields: [storeId], references: [id])
+  status          VehicleStatus @default(active)
+
+  // Warranty (also mirrored as a ComplianceDocument for the alert engine)
+  warrantyEndDate DateTime?     @map("warranty_end_date")
+  warrantyEndKm   Int?          @map("warranty_end_km")
+
+  // Depreciation params (editable per vehicle)
+  usefulLifeYears Int?          @map("useful_life_years")
+  residualValue   Decimal?      @map("residual_value") @db.Decimal(12, 2)
+
+  isActive        Boolean       @default(true) @map("is_active")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  createdBy       String?       @map("created_by")
+  updatedBy       String?       @map("updated_by")
+
+  documents       ComplianceDocument[]
+  fuelTx          FuelTransaction[]
+  jobCards        JobCard[]
+  pmState         PmState?
+  tyres           Tyre[]
+  incidents       Incident[]
+  fines           Fine[]
+  salik           SalikTag?
+  assignments     VehicleDriverAssignment[]
+  purchase        VehiclePurchase?
+  disposal        VehicleDisposal?
+  routes          Route[]
+  alerts          Alert[]
+
+  @@unique([plateNumber, plateEmirate])
+  @@index([status])
+  @@index([vehicleType])
+  @@map("vehicles")
+}
+
+model Driver {
+  id               String   @id @default(uuid())
+  fullName         String   @map("full_name")
+  staffId          String   @unique @map("staff_id")
+  dob              DateTime?
+  bloodGroup       String?  @map("blood_group")
+  nationality      String?
+  joiningDate      DateTime? @map("joining_date")
+  emergencyContact String?  @map("emergency_contact")
+  photoKey         String?  @map("photo_key")
+
+  licenceNumber    String?  @map("licence_number")
+  licenceClass     String?  @map("licence_class")
+  licenceExpiry    DateTime? @map("licence_expiry")
+  emiratesId       String?  @map("emirates_id")
+  emiratesIdExpiry DateTime? @map("emirates_id_expiry")
+  visaExpiry       DateTime? @map("visa_expiry")
+  passportNumber   String?  @map("passport_number")
+  passportExpiry   DateTime? @map("passport_expiry")
+
+  defaultVehicleId String?  @map("default_vehicle_id")
+  status           String   @default("active")
+
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  createdBy        String?  @map("created_by")
+  updatedBy        String?  @map("updated_by")
+
+  documents        ComplianceDocument[]
+  assignments      VehicleDriverAssignment[]
+  fuelTx           FuelTransaction[]
+  incidents        Incident[]
+  fines            Fine[]
+  routes           Route[]
+  user             User?
+
+  @@index([status])
+  @@map("drivers")
+}
+
+model Vendor {
+  id            String     @id @default(uuid())
+  type          VendorType
+  name          String
+  contactPerson String?    @map("contact_person")
+  phone         String?
+  email         String?
+  trn           String?
+  address       String?
+  notes         String?
+  isActive      Boolean    @default(true) @map("is_active")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  createdBy     String?    @map("created_by")
+  updatedBy     String?    @map("updated_by")
+
+  leasedVehicles Vehicle[]  @relation("VehicleLessor")
+  jobCards       JobCard[]
+  tyres          Tyre[]
+  incidents      Incident[]
+  purchases      VehiclePurchase[]
+
+  @@index([type])
+  @@map("vendors")
+}
+
+model Store {
+  id             String    @id @default(uuid())
+  code           String    @unique
+  name           String
+  emirate        String
+  address        String?
+  contact        String?
+  deliveryWindow String?   @map("delivery_window")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  createdBy      String?   @map("created_by")
+  updatedBy      String?   @map("updated_by")
+
+  vehicles       Vehicle[]
+
+  @@map("stores")
+}
+
+// Staff-transport passengers only (NOT carpenters/crew).
+model Employee {
+  id          String   @id @default(uuid())
+  name        String
+  staffId     String   @unique @map("staff_id")
+  pickupPoint String?  @map("pickup_point")
+  homeCamp    String?  @map("home_camp")
+  phone       String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   String?  @map("created_by")
+  updatedBy   String?  @map("updated_by")
+
+  routeMaps   RouteEmployee[]
+  attendance  Attendance[]
+
+  @@map("employees")
+}
+
+// ---------------------------------------------------------------------------
+// Assignment history (shared, powers fine attribution + availability + "who drove when")
+// ---------------------------------------------------------------------------
+
+model VehicleDriverAssignment {
+  id           String    @id @default(uuid())
+  vehicleId    String    @map("vehicle_id")
+  vehicle      Vehicle   @relation(fields: [vehicleId], references: [id])
+  driverId     String    @map("driver_id")
+  driver       Driver    @relation(fields: [driverId], references: [id])
+  effectiveFrom DateTime @map("effective_from")
+  effectiveTo   DateTime? @map("effective_to") // null = still active
+  note         String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  createdBy    String?   @map("created_by")
+  updatedBy    String?   @map("updated_by")
+
+  @@index([vehicleId, effectiveFrom])
+  @@index([driverId, effectiveFrom])
+  @@map("vehicle_driver_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Compliance documents (vehicle + driver) — one register for the alert engine
+// ---------------------------------------------------------------------------
+
+model ComplianceDocument {
+  id          String        @id @default(uuid())
+  entityType  DocumentEntity @map("entity_type")
+  vehicleId   String?       @map("vehicle_id")
+  vehicle     Vehicle?      @relation(fields: [vehicleId], references: [id])
+  driverId    String?       @map("driver_id")
+  driver      Driver?       @relation(fields: [driverId], references: [id])
+  docType     DocType       @map("doc_type")
+  reference   String?       // policy/registration number
+  issueDate   DateTime?     @map("issue_date")
+  expiryDate  DateTime?     @map("expiry_date")
+  fileKey     String?       @map("file_key") // uploaded scan
+  renewalInProgress Boolean @default(false) @map("renewal_in_progress")
+  notes       String?
+  isActive    Boolean       @default(true) @map("is_active")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  createdBy   String?       @map("created_by")
+  updatedBy   String?       @map("updated_by")
+
+  @@index([expiryDate])
+  @@index([vehicleId])
+  @@index([driverId])
+  @@map("compliance_documents")
+}
+
+// ---------------------------------------------------------------------------
+// Fuel
+// ---------------------------------------------------------------------------
+
+model FuelTransaction {
+  id            String        @id @default(uuid())
+  vehicleId     String        @map("vehicle_id")
+  vehicle       Vehicle       @relation(fields: [vehicleId], references: [id])
+  filledAt      DateTime      @map("filled_at")
+  odometer      Int?          // mandatory in practice; nullable flags an anomaly
+  litres        Decimal       @db.Decimal(10, 2)
+  amount        Decimal       @db.Decimal(12, 2)
+  rate          Decimal?      @db.Decimal(10, 3)
+  channel       FuelChannel
+  driverId      String?       @map("driver_id")
+  driver        Driver?       @relation(fields: [driverId], references: [id])
+
+  // Derived / computed
+  kmSinceLast   Int?          @map("km_since_last")
+  kmPerLitre    Decimal?      @map("km_per_litre") @db.Decimal(8, 3)
+
+  // Cash approval workflow
+  approvalStatus ApprovalStatus? @map("approval_status") // null for non-cash
+  approvedById   String?       @map("approved_by_id")
+  approvedAt     DateTime?     @map("approved_at")
+  rejectionReason String?      @map("rejection_reason")
+
+  importBatchId String?        @map("import_batch_id")
+  isActive      Boolean       @default(true) @map("is_active")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  createdBy     String?       @map("created_by")
+  updatedBy     String?       @map("updated_by")
+
+  @@index([vehicleId, filledAt])
+  @@index([channel, approvalStatus])
+  @@map("fuel_transactions")
+}
+
+// ---------------------------------------------------------------------------
+// Maintenance
+// ---------------------------------------------------------------------------
+
+model JobCard {
+  id             String     @id @default(uuid())
+  jobNumber      String     @unique @map("job_number")
+  vehicleId      String     @map("vehicle_id")
+  vehicle        Vehicle    @relation(fields: [vehicleId], references: [id])
+  odometerIn     Int?       @map("odometer_in")
+  odometerOut    Int?       @map("odometer_out")
+  dateIn         DateTime   @map("date_in")
+  dateOut        DateTime?  @map("date_out")
+  downtimeDays   Int?       @map("downtime_days")
+  type           JobType
+  description    String?
+  vendorId       String?    @map("vendor_id")
+  vendor         Vendor?    @relation(fields: [vendorId], references: [id])
+  invoiceNumber  String?    @map("invoice_number")
+  invoiceKey     String?    @map("invoice_key")
+  labourCharges  Decimal?   @map("labour_charges") @db.Decimal(12, 2)
+  otherCharges   Decimal?   @map("other_charges") @db.Decimal(12, 2)
+  totalCost      Decimal?   @map("total_cost") @db.Decimal(12, 2)
+  isWarrantyClaim Boolean   @default(false) @map("is_warranty_claim")
+  status         JobStatus  @default(open)
+  isActive       Boolean    @default(true) @map("is_active")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  createdBy      String?    @map("created_by")
+  updatedBy      String?    @map("updated_by")
+
+  parts          JobCardPart[]
+
+  @@index([vehicleId, dateIn])
+  @@index([status])
+  @@map("job_cards")
+}
+
+model JobCardPart {
+  id        String   @id @default(uuid())
+  jobCardId String   @map("job_card_id")
+  jobCard   JobCard  @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  partName  String   @map("part_name")
+  qty       Decimal  @db.Decimal(10, 2)
+  unitCost  Decimal  @map("unit_cost") @db.Decimal(12, 2)
+
+  @@map("job_card_parts")
+}
+
+// PM schedule defaults per vehicle type (editable settings, not hard-coded).
+model PmSchedule {
+  id          String      @id @default(uuid())
+  vehicleType VehicleType @unique @map("vehicle_type")
+  kmInterval  Int         @map("km_interval")
+  timeIntervalDays Int    @map("time_interval_days")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  updatedBy   String?     @map("updated_by")
+
+  @@map("pm_schedules")
+}
+
+// Per-vehicle PM tracking (last + computed next).
+model PmState {
+  id         String   @id @default(uuid())
+  vehicleId  String   @unique @map("vehicle_id")
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id])
+  lastPmKm   Int?     @map("last_pm_km")
+  lastPmDate DateTime? @map("last_pm_date")
+  nextPmKm   Int?     @map("next_pm_km")
+  nextPmDate DateTime? @map("next_pm_date")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("pm_states")
+}
+
+model Tyre {
+  id           String    @id @default(uuid())
+  serial       String
+  brand        String?
+  vehicleId    String?   @map("vehicle_id")
+  vehicle      Vehicle?  @relation(fields: [vehicleId], references: [id])
+  position     String?   // fitment position code (diagram-friendly)
+  fitmentDate  DateTime? @map("fitment_date")
+  fitmentOdometer Int?   @map("fitment_odometer")
+  treadDepthMm Decimal?  @map("tread_depth_mm") @db.Decimal(5, 2)
+  scrapDate    DateTime? @map("scrap_date")
+  scrapReason  String?   @map("scrap_reason")
+  vendorId     String?   @map("vendor_id")
+  vendor       Vendor?   @relation(fields: [vendorId], references: [id])
+  cost         Decimal?  @db.Decimal(12, 2)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  createdBy    String?   @map("created_by")
+  updatedBy    String?   @map("updated_by")
+
+  treadChecks  TyreTreadCheck[]
+
+  @@index([vehicleId])
+  @@map("tyres")
+}
+
+model TyreTreadCheck {
+  id        String   @id @default(uuid())
+  tyreId    String   @map("tyre_id")
+  tyre      Tyre     @relation(fields: [tyreId], references: [id], onDelete: Cascade)
+  checkedAt DateTime @map("checked_at")
+  depthMm   Decimal  @map("depth_mm") @db.Decimal(5, 2)
+  note      String?
+
+  @@map("tyre_tread_checks")
+}
+
+// ---------------------------------------------------------------------------
+// Incidents, Fines, Salik
+// ---------------------------------------------------------------------------
+
+model Incident {
+  id             String      @id @default(uuid())
+  vehicleId      String      @map("vehicle_id")
+  vehicle        Vehicle     @relation(fields: [vehicleId], references: [id])
+  driverId       String?     @map("driver_id")
+  driver         Driver?     @relation(fields: [driverId], references: [id])
+  occurredAt     DateTime    @map("occurred_at")
+  emirate        String?
+  area           String?
+  description    String?
+  policeReportNo String?     @map("police_report_no")
+  thirdParty     String?     @map("third_party")
+  insuranceVendorId String?  @map("insurance_vendor_id")
+  insuranceVendor Vendor?    @relation(fields: [insuranceVendorId], references: [id])
+  claimStatus    ClaimStatus @default(reported) @map("claim_status")
+  claimAmount    Decimal?    @map("claim_amount") @db.Decimal(12, 2)
+  settlementAmount Decimal?  @map("settlement_amount") @db.Decimal(12, 2)
+  isActive       Boolean     @default(true) @map("is_active")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  createdBy      String?     @map("created_by")
+  updatedBy      String?     @map("updated_by")
+
+  photos         IncidentPhoto[]
+
+  @@index([vehicleId, occurredAt])
+  @@index([claimStatus])
+  @@map("incidents")
+}
+
+model IncidentPhoto {
+  id         String   @id @default(uuid())
+  incidentId String   @map("incident_id")
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  fileKey    String   @map("file_key")
+  caption    String?
+
+  @@map("incident_photos")
+}
+
+model Fine {
+  id             String     @id @default(uuid())
+  reference      String     @map("reference")
+  offenceAt      DateTime   @map("offence_at")
+  vehicleId      String     @map("vehicle_id")
+  vehicle        Vehicle    @relation(fields: [vehicleId], references: [id])
+  type           FineType
+  amount         Decimal    @db.Decimal(12, 2)
+  authority      String?
+  emirate        String?
+  status         FineStatus @default(unpaid)
+  paymentDate    DateTime?  @map("payment_date")
+  // Auto-attributed to assigned driver on offence date, overridable + audited.
+  driverId       String?    @map("driver_id")
+  driver         Driver?    @relation(fields: [driverId], references: [id])
+  driverOverridden Boolean  @default(false) @map("driver_overridden")
+  isActive       Boolean    @default(true) @map("is_active")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  createdBy      String?    @map("created_by")
+  updatedBy      String?    @map("updated_by")
+
+  @@index([vehicleId, offenceAt])
+  @@index([status])
+  @@map("fines")
+}
+
+model SalikTag {
+  id            String   @id @default(uuid())
+  vehicleId     String   @unique @map("vehicle_id")
+  vehicle       Vehicle  @relation(fields: [vehicleId], references: [id])
+  tagNumber     String   @map("tag_number")
+  balance       Decimal  @default(0) @db.Decimal(12, 2)
+  lowThreshold  Decimal  @default(20) @map("low_threshold") @db.Decimal(12, 2)
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  updatedBy     String?  @map("updated_by")
+
+  @@map("salik_tags")
+}
+
+// ---------------------------------------------------------------------------
+// Asset lifecycle
+// ---------------------------------------------------------------------------
+
+model VehiclePurchase {
+  id           String   @id @default(uuid())
+  vehicleId    String   @unique @map("vehicle_id")
+  vehicle      Vehicle  @relation(fields: [vehicleId], references: [id])
+  purchaseDate DateTime @map("purchase_date")
+  supplierId   String?  @map("supplier_id")
+  supplier     Vendor?  @relation(fields: [supplierId], references: [id])
+  purchasePrice Decimal @map("purchase_price") @db.Decimal(14, 2)
+  invoiceKey   String?  @map("invoice_key")
+  financing    String?
+  usefulLifeYears Int?  @map("useful_life_years")
+  residualValue Decimal? @map("residual_value") @db.Decimal(12, 2)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  createdBy    String?  @map("created_by")
+
+  @@map("vehicle_purchases")
+}
+
+model VehicleDisposal {
+  id           String         @id @default(uuid())
+  vehicleId    String         @unique @map("vehicle_id")
+  vehicle      Vehicle        @relation(fields: [vehicleId], references: [id])
+  disposalDate DateTime       @map("disposal_date")
+  method       DisposalMethod
+  buyer        String?
+  salePrice    Decimal?       @map("sale_price") @db.Decimal(14, 2)
+  bookValue    Decimal?       @map("book_value") @db.Decimal(14, 2)
+  gainLoss     Decimal?       @map("gain_loss") @db.Decimal(14, 2)
+  documentsKey String?        @map("documents_key")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  createdBy    String?        @map("created_by")
+
+  @@map("vehicle_disposals")
+}
+
+// ---------------------------------------------------------------------------
+// Staff transport
+// ---------------------------------------------------------------------------
+
+model Route {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  direction    String?
+  scheduledTime String? @map("scheduled_time")
+  vehicleId    String?  @map("vehicle_id")
+  vehicle      Vehicle? @relation(fields: [vehicleId], references: [id])
+  driverId     String?  @map("driver_id")
+  driver       Driver?  @relation(fields: [driverId], references: [id])
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  createdBy    String?  @map("created_by")
+  updatedBy    String?  @map("updated_by")
+
+  employees    RouteEmployee[]
+  attendance   Attendance[]
+  assignments  RouteAssignment[]
+
+  @@map("routes")
+}
+
+// Route vehicle/driver assignment history (effective-dated).
+model RouteAssignment {
+  id           String   @id @default(uuid())
+  routeId      String   @map("route_id")
+  route        Route    @relation(fields: [routeId], references: [id])
+  vehicleId    String?  @map("vehicle_id")
+  driverId     String?  @map("driver_id")
+  effectiveFrom DateTime @map("effective_from")
+  effectiveTo   DateTime? @map("effective_to")
+  createdAt    DateTime @default(now()) @map("created_at")
+  createdBy    String?  @map("created_by")
+
+  @@index([routeId, effectiveFrom])
+  @@map("route_assignments")
+}
+
+model RouteEmployee {
+  id           String   @id @default(uuid())
+  routeId      String   @map("route_id")
+  route        Route    @relation(fields: [routeId], references: [id])
+  employeeId   String   @map("employee_id")
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  pickupPoint  String?  @map("pickup_point") // overrides employee default per route
+  effectiveFrom DateTime @map("effective_from")
+  effectiveTo   DateTime? @map("effective_to")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  createdBy    String?  @map("created_by")
+
+  @@index([routeId])
+  @@index([employeeId])
+  @@map("route_employees")
+}
+
+model Attendance {
+  id         String           @id @default(uuid())
+  routeId    String           @map("route_id")
+  route      Route            @relation(fields: [routeId], references: [id])
+  employeeId String           @map("employee_id")
+  employee   Employee         @relation(fields: [employeeId], references: [id])
+  date       DateTime         @db.Date
+  status     AttendanceStatus
+  markedBy   AttendanceMarkedBy @map("marked_by")
+  markedByUserId String?      @map("marked_by_user_id")
+  note       String?
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  // Coordinator marks take precedence; uniqueness is per route/employee/date.
+  @@unique([routeId, employeeId, date])
+  @@index([date])
+  @@map("attendance")
+}
+
+// ---------------------------------------------------------------------------
+// Inventory (built, disabled behind FEATURE_INVENTORY)
+// ---------------------------------------------------------------------------
+
+model Part {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  category     String?
+  unit         String   @default("pcs")
+  stockOnHand  Decimal  @default(0) @map("stock_on_hand") @db.Decimal(12, 2)
+  reorderLevel Decimal  @default(0) @map("reorder_level") @db.Decimal(12, 2)
+  supplierId   String?  @map("supplier_id")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  movements    PartMovement[]
+
+  @@map("parts")
+}
+
+model PartMovement {
+  id        String   @id @default(uuid())
+  partId    String   @map("part_id")
+  part      Part     @relation(fields: [partId], references: [id])
+  direction String   // in | out
+  qty       Decimal  @db.Decimal(12, 2)
+  reference String?
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by")
+
+  @@map("part_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Alerts, Settings, Audit
+// ---------------------------------------------------------------------------
+
+model Alert {
+  id          String        @id @default(uuid())
+  category    AlertCategory
+  severity    AlertSeverity
+  // Dedupe key: category + entity + rule window; one active alert per key.
+  dedupeKey   String        @unique @map("dedupe_key")
+  vehicleId   String?       @map("vehicle_id")
+  vehicle     Vehicle?      @relation(fields: [vehicleId], references: [id])
+  driverId    String?       @map("driver_id")
+  routeId     String?       @map("route_id")
+  title       String
+  message     String
+  dueDate     DateTime?     @map("due_date")
+  resolved    Boolean       @default(false)
+  resolvedAt  DateTime?     @map("resolved_at")
+  lastNotifiedAt DateTime?  @map("last_notified_at")
+  notifyCount Int           @default(0) @map("notify_count")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  @@index([category, severity, resolved])
+  @@map("alerts")
+}
+
+// Key/value settings framework (typed via JSON). Admin-configurable.
+model Setting {
+  key       String   @id
+  value     Json
+  category  String?
+  label     String?
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String?  @map("updated_by")
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  entity     String   // table/model name
+  entityId   String   @map("entity_id")
+  action     String   // create | update | delete | approve | reject | login
+  userId     String?  @map("user_id")
+  userEmail  String?  @map("user_email")
+  before     Json?
+  after      Json?
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_log")
+}
