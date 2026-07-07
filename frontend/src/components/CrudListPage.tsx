@@ -29,6 +29,9 @@ interface Props {
   pageSize?: number;
   hideDelete?: boolean;          // for resources without a delete endpoint
   importable?: boolean;          // show a bulk-import (Excel) button
+  // Extra per-row actions (e.g. release a committed vehicle). Receives the row
+  // and a refetch callback.
+  extraActions?: (row: any, refetch: () => void) => JSX.Element[];
 }
 
 // Generic list + Add/Edit/Delete page for standard REST resources.
@@ -64,6 +67,7 @@ export default function CrudListPage(props: Props) {
     getActions: (p) => {
       const items = [];
       if (canUpdate) items.push(<GridActionsCellItem key="e" icon={<EditIcon />} label="Edit" onClick={() => openEdit(p.row)} />);
+      if (props.extraActions) items.push(...props.extraActions(p.row, () => list.refetch()));
       if (canDelete) items.push(
         <GridActionsCellItem key="d" icon={<DeleteIcon />} label="Delete" showInMenu
           onClick={() => { if (confirm('Delete this record?')) remove.mutate(props.getId ? props.getId(p.row) : p.row.id); }} />
@@ -72,7 +76,7 @@ export default function CrudListPage(props: Props) {
     },
   };
 
-  const columns = (canUpdate || canDelete) ? [...props.columns, actionCol] : props.columns;
+  const columns = (canUpdate || canDelete || props.extraActions) ? [...props.columns, actionCol] : props.columns;
   const rows = list.data?.data ?? list.data ?? [];
 
   return (

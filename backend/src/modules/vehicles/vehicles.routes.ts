@@ -8,6 +8,7 @@ import { audit } from '../../lib/audit';
 import { actorFrom, paged, paging } from '../../lib/http';
 import { BadRequest, NotFound } from '../../lib/errors';
 import { assertOdometerNotDecreasing } from './odometer';
+import { releaseVehicle } from '../assignments/assignments.service';
 
 export const vehiclesRouter = Router();
 
@@ -44,7 +45,44 @@ const createSchema = z.object({
   warrantyEndKm: z.number().int().optional(),
   usefulLifeYears: z.number().int().optional(),
   residualValue: z.number().optional(),
+  // Purchase info (kept on a linked VehiclePurchase record; drives depreciation).
+  purchaseDate: isoDate,
+  purchasePrice: z.number().optional(),
 });
+
+// Split purchase fields (stored on VehiclePurchase) from vehicle columns.
+function splitPurchase(body: Record<string, unknown>) {
+  const { purchaseDate, purchasePrice, ...vehicleData } = body;
+  return { purchaseDate, purchasePrice, vehicleData: vehicleData as Record<string, any> };
+}
+
+// Upsert the purchase record when purchase date/price are supplied. Useful-life
+// and residual come from the vehicle (with a sensible default) so the TCO engine
+// can compute straight-line depreciation.
+async function upsertPurchase(
+  vehicleId: string,
+  purchaseDate: unknown,
+  purchasePrice: unknown,
+  usefulLifeYears: number | null | undefined,
+  residualValue: unknown,
+  actorId: string
+) {
+  if (purchaseDate == null && purchasePrice == null) return;
+  const existing = await prisma.vehiclePurchase.findUnique({ where: { vehicleId } });
+  const date = purchaseDate ? new Date(purchaseDate as string) : existing?.purchaseDate ?? new Date();
+  const price = purchasePrice != null ? (purchasePrice as number) : Number(existing?.purchasePrice ?? 0);
+  await prisma.vehiclePurchase.upsert({
+    where: { vehicleId },
+    create: {
+      vehicleId, purchaseDate: date, purchasePrice: price,
+      usefulLifeYears: usefulLifeYears ?? 5, residualValue: (residualValue as number) ?? 0, createdBy: actorId,
+    },
+    update: {
+      purchaseDate: date, purchasePrice: price,
+      usefulLifeYears: usefulLifeYears ?? undefined, residualValue: (residualValue as number) ?? undefined,
+    },
+  });
+}
 
 // LIST with filters (status, type, store) and computed availability info.
 vehiclesRouter.get(
@@ -71,7 +109,12 @@ vehiclesRouter.get(
         skip,
         take,
         orderBy: { plateNumber: 'asc' },
-        include: { store: { select: { code: true, name: true } } },
+        include: {
+          store: { select: { code: true, name: true } },
+          purchase: { select: { purchaseDate: true, purchasePrice: true } },
+          // Current (open) driver assignment → shows commitment + enables release.
+          assignments: { where: { effectiveTo: null }, take: 1, include: { driver: { select: { id: true, fullName: true } } } },
+        },
       }),
       prisma.vehicle.count({ where }),
     ]);
@@ -111,9 +154,11 @@ vehiclesRouter.post(
   authorize('vehicles', 'create'),
   validate({ body: createSchema }),
   asyncHandler(async (req, res) => {
+    const { purchaseDate, purchasePrice, vehicleData } = splitPurchase(req.body);
     const vehicle = await prisma.vehicle.create({
-      data: { ...req.body, createdBy: req.user!.id, updatedBy: req.user!.id },
+      data: { ...vehicleData, createdBy: req.user!.id, updatedBy: req.user!.id } as any,
     });
+    await upsertPurchase(vehicle.id, purchaseDate, purchasePrice, vehicle.usefulLifeYears, vehicle.residualValue, req.user!.id);
     await audit({ entity: 'vehicles', entityId: vehicle.id, action: 'create', actor: actorFrom(req), after: vehicle });
     res.status(201).json(vehicle);
   })
@@ -126,14 +171,16 @@ vehiclesRouter.patch(
   asyncHandler(async (req, res) => {
     const before = await prisma.vehicle.findUnique({ where: { id: req.params.id } });
     if (!before) throw NotFound('Vehicle not found');
+    const { purchaseDate, purchasePrice, vehicleData } = splitPurchase(req.body);
     // Guard odometer on generic update — only FM correction endpoint may lower it.
-    if (req.body.currentOdometer != null) {
-      assertOdometerNotDecreasing(before.currentOdometer, req.body.currentOdometer);
+    if (vehicleData.currentOdometer != null) {
+      assertOdometerNotDecreasing(before.currentOdometer, vehicleData.currentOdometer as number);
     }
     const vehicle = await prisma.vehicle.update({
       where: { id: req.params.id },
-      data: { ...req.body, updatedBy: req.user!.id },
+      data: { ...vehicleData, updatedBy: req.user!.id },
     });
+    await upsertPurchase(vehicle.id, purchaseDate, purchasePrice, vehicle.usefulLifeYears, vehicle.residualValue, req.user!.id);
     await audit({ entity: 'vehicles', entityId: vehicle.id, action: 'update', actor: actorFrom(req), before, after: vehicle });
     res.json(vehicle);
   })
@@ -180,6 +227,24 @@ vehiclesRouter.post(
     });
     await audit({ entity: 'vehicles', entityId: vehicle.id, action: 'update', actor: actorFrom(req), before: { status: before.status }, after: { status: vehicle.status } });
     res.json(vehicle);
+  })
+);
+
+// Release the vehicle's current driver commitment (ends the open assignment),
+// moving it back to "free" on the availability board. History is preserved.
+vehiclesRouter.post(
+  '/:id/release-driver',
+  authorize('vehicles', 'update'),
+  validate({ params: z.object({ id: z.string().uuid() }) }),
+  asyncHandler(async (req, res) => {
+    const vehicle = await prisma.vehicle.findUnique({ where: { id: req.params.id } });
+    if (!vehicle) throw NotFound('Vehicle not found');
+    const releasedDriverId = await releaseVehicle(prisma, req.params.id);
+    await audit({
+      entity: 'vehicle_driver_assignments', entityId: req.params.id, action: 'update', actor: actorFrom(req),
+      before: { driverId: releasedDriverId }, after: { released: true },
+    });
+    res.json({ ok: true, released: !!releasedDriverId });
   })
 );
 

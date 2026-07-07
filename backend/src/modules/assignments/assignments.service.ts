@@ -21,6 +21,25 @@ export async function driverOnDate(
   return assignment?.driverId ?? null;
 }
 
+// Releases a vehicle by closing its current open driver assignment, freeing it
+// on the availability board. Returns the driver id that was released, if any.
+export async function releaseVehicle(
+  db: Db,
+  vehicleId: string,
+  effectiveTo: Date = new Date()
+): Promise<string | null> {
+  const open = await db.vehicleDriverAssignment.findFirst({
+    where: { vehicleId, effectiveTo: null },
+    orderBy: { effectiveFrom: 'desc' },
+  });
+  if (!open) return null;
+  await db.vehicleDriverAssignment.update({
+    where: { id: open.id },
+    data: { effectiveTo },
+  });
+  return open.driverId;
+}
+
 // Creates a new assignment, closing the previous open assignment for the same
 // vehicle. Never overwrites history — always versions.
 export async function assignDriver(
