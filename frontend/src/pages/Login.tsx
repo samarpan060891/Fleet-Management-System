@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Box, Button, Card, CardContent, TextField, Typography, Alert, Stack, Divider } from '@mui/material';
+import { Box, Button, Card, CardContent, TextField, Typography, Alert, Stack, Divider, IconButton, InputAdornment } from '@mui/material';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { useAuth } from '../auth/AuthContext';
 import { t } from '../i18n';
 
@@ -18,6 +20,7 @@ export default function Login() {
   const [password, setPassword] = useState('Admin@123');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +48,27 @@ export default function Login() {
           <form onSubmit={submit}>
             <Stack spacing={2}>
               <TextField label={t('auth.email')} type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth required />
-              <TextField label={t('auth.password')} type="password" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth required />
+              <TextField
+                label={t('auth.password')}
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                fullWidth
+                required
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        onClick={() => setShowPassword((s) => !s)}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
               <Button type="submit" variant="contained" size="large" disabled={busy}>
                 {busy ? '…' : t('auth.login')}
               </Button>
