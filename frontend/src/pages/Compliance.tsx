@@ -5,7 +5,7 @@ import { FieldDef } from '../components/FormDialog';
 import { fmtDate } from '../i18n';
 import { useLookups } from '../hooks/useLookups';
 
-const DOC_TYPES = ['mulkiya', 'insurance', 'tasjeel', 'lease', 'warranty', 'licence', 'emirates_id', 'visa', 'passport'];
+const DOC_TYPES = ['mulkiya', 'insurance', 'tasjeel', 'lease', 'warranty', 'permit', 'licence', 'emirates_id', 'visa', 'passport'];
 
 function daysLeft(expiry: string | null): number | null {
   if (!expiry) return null;

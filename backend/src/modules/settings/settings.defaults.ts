@@ -11,6 +11,7 @@ export const DEFAULT_COMPLIANCE_WINDOWS: Record<DocType, number[]> = {
   tasjeel: [60, 30, 15, 7],
   lease: [60, 30, 15, 7],
   warranty: [60, 30, 15, 7],
+  permit: [60, 30, 15, 7],
   licence: [60, 30, 15, 7],
   emirates_id: [60, 30, 15, 7],
   visa: [60, 30, 15, 7],

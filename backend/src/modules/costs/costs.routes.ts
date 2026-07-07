@@ -4,9 +4,31 @@ import { prisma } from '../../lib/prisma';
 import { authorize } from '../../middleware/authorize';
 import { validate } from '../../middleware/validate';
 import { asyncHandler } from '../../middleware/errorHandler';
-import { computeVehicleTco, resolvePeriod } from './costs.service';
+import { computeFleetAssets, computeVehicleTco, resolvePeriod } from './costs.service';
 
 export const costsRouter = Router();
+
+// Fleet asset value: total purchased vs. net book value after depreciation.
+costsRouter.get(
+  '/assets',
+  authorize('costs', 'read'),
+  asyncHandler(async (_req, res) => {
+    res.json(await computeFleetAssets());
+  })
+);
+
+// Disposed / sold vehicles register (gain/loss vs. book value).
+costsRouter.get(
+  '/disposals',
+  authorize('costs', 'read'),
+  asyncHandler(async (_req, res) => {
+    const rows = await prisma.vehicleDisposal.findMany({
+      orderBy: { disposalDate: 'desc' },
+      include: { vehicle: { select: { plateNumber: true, plateEmirate: true, make: true, model: true } } },
+    });
+    res.json(rows);
+  })
+);
 
 // TCO for a single vehicle.
 costsRouter.get(

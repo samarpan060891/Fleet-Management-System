@@ -34,6 +34,7 @@ export const RESOURCES = [
   'salik',
   'incidents',
   'costs',
+  'payments', // vendor invoices / payables
   'transport', // routes, mapping
   'allocations', // fleet allocation / dispatch
   'attendance',
@@ -78,6 +79,10 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     ...read('vendors'),
     ...crud('maintenance'),
     ...crud('tyres'),
+    ...read('vendors'),
+    ...read('payments'),
+    'payments:create',
+    'payments:update',
     ...read('alerts'),
     ...read('availability'),
     ...read('reports'),
@@ -107,6 +112,10 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     ...read('reports'),
     'reports:export',
     ...read('salik'),
+    ...read('payments'),
+    'payments:create',
+    'payments:update',
+    'payments:export',
   ],
 
   // Routes, vehicle/driver assignment, employee mapping, attendance.

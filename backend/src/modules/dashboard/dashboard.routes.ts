@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { prisma } from '../../lib/prisma';
 import { authorize } from '../../middleware/authorize';
 import { asyncHandler } from '../../middleware/errorHandler';
-import { resolvePeriod } from '../costs/costs.service';
+import { computeFleetAssets, resolvePeriod } from '../costs/costs.service';
 import { Forbidden } from '../../lib/errors';
 
 export const dashboardRouter = Router();
@@ -33,6 +33,21 @@ dashboardRouter.get(
     const mtdCost =
       Number(fuelMtd._sum.amount ?? 0) + Number(maintMtd._sum.totalCost ?? 0) + Number(finesMtd._sum.amount ?? 0);
 
+    // --- Today's allocations + utilization ---
+    const todayStart = dayjs(now).startOf('day').toDate();
+    const [allocByType, activeVehicles, activeDrivers, allocatedVehicles, allocatedDrivers, assets, payablesOpen] = await Promise.all([
+      prisma.fleetAllocation.groupBy({ by: ['type'], where: { isActive: true, date: todayStart, status: { in: ['planned', 'active', 'completed'] } }, _count: true }),
+      prisma.vehicle.count({ where: { isActive: true, status: { in: ['active', 'idle'] } } }),
+      prisma.driver.count({ where: { isActive: true, status: 'active' } }),
+      prisma.fleetAllocation.findMany({ where: { isActive: true, date: todayStart, status: { in: ['planned', 'active', 'completed'] } }, select: { vehicleId: true }, distinct: ['vehicleId'] }),
+      prisma.fleetAllocation.findMany({ where: { isActive: true, date: todayStart, status: { in: ['planned', 'active', 'completed'] }, driverId: { not: null } }, select: { driverId: true }, distinct: ['driverId'] }),
+      computeFleetAssets(),
+      prisma.vendorInvoice.aggregate({ where: { isActive: true, status: { in: ['unpaid', 'partial'] } }, _sum: { amount: true, paidAmount: true } }),
+    ]);
+    const fleetUtilization = activeVehicles > 0 ? Math.round((allocatedVehicles.length / activeVehicles) * 100) : 0;
+    const driverUtilization = activeDrivers > 0 ? Math.round((allocatedDrivers.length / activeDrivers) * 100) : 0;
+    const payablesOutstanding = Number(payablesOpen._sum.amount ?? 0) - Number(payablesOpen._sum.paidAmount ?? 0);
+
     res.json({
       availability,
       alertsBySeverity: alertSeverity,
@@ -44,6 +59,18 @@ dashboardRouter.get(
         maintenance: Number(maintMtd._sum.totalCost ?? 0),
         fines: Number(finesMtd._sum.amount ?? 0),
       },
+      allocationsToday: allocByType.map((a) => ({ type: a.type, count: a._count })),
+      utilization: {
+        fleetPct: fleetUtilization, driverPct: driverUtilization,
+        vehiclesAllocated: allocatedVehicles.length, activeVehicles,
+        driversAllocated: allocatedDrivers.length, activeDrivers,
+      },
+      assets: {
+        totalPurchaseValue: assets.totalPurchaseValue,
+        totalBookValue: assets.totalBookValue,
+        totalDepreciation: assets.totalDepreciation,
+      },
+      payablesOutstanding: +payablesOutstanding.toFixed(2),
     });
   })
 );
@@ -75,6 +102,16 @@ dashboardRouter.get(
       where: { routeId: { in: routes.map((r) => r.id) }, date: today },
     });
 
+    // Today's allocations for this driver (or their vehicle).
+    const allocations = await prisma.fleetAllocation.findMany({
+      where: {
+        isActive: true, date: today, status: { in: ['planned', 'active'] },
+        OR: [{ driverId }, ...(assignment?.vehicleId ? [{ vehicleId: assignment.vehicleId }] : [])],
+      },
+      include: { store: { select: { code: true, name: true } }, route: { select: { code: true, name: true } } },
+      orderBy: { startTime: 'asc' },
+    });
+
     res.json({
       vehicle: assignment?.vehicle
         ? {
@@ -87,6 +124,12 @@ dashboardRouter.get(
           }
         : null,
       myDocuments: docs,
+      allocations: allocations.map((a) => ({
+        id: a.id, type: a.type, status: a.status, startTime: a.startTime, endTime: a.endTime,
+        destination: a.type === 'store_delivery' ? (a.store ? `${a.store.code} · ${a.store.name}` : null)
+          : a.type === 'staff_transport' ? (a.route ? `${a.route.code} · ${a.route.name}` : null)
+          : [a.reference, a.area, a.emirate].filter(Boolean).join(' · ') || null,
+      })),
       routes: routes.map((r) => ({
         id: r.id,
         code: r.code,

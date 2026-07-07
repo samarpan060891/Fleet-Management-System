@@ -24,8 +24,19 @@ const createSchema = z.object({
   date: z.string(),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
+  tripStartAt: z.string().optional(),
+  tripEndAt: z.string().optional(),
+  waitingMinutes: z.number().int().min(0).optional(),
   notes: z.string().optional(),
 });
+
+// Coerce datetime strings on the trip fields.
+function coerceTrips(body: Record<string, any>) {
+  const out = { ...body };
+  if (out.tripStartAt) out.tripStartAt = new Date(out.tripStartAt);
+  if (out.tripEndAt) out.tripEndAt = new Date(out.tripEndAt);
+  return out;
+}
 
 const includeRefs = {
   vehicle: { select: { plateNumber: true, plateEmirate: true } },
@@ -74,7 +85,7 @@ allocationsRouter.post(
   validate({ body: createSchema }),
   asyncHandler(async (req, res) => {
     const allocation = await prisma.fleetAllocation.create({
-      data: { ...req.body, date: dayjs(req.body.date).startOf('day').toDate(), createdBy: req.user!.id, updatedBy: req.user!.id },
+      data: { ...coerceTrips(req.body), date: dayjs(req.body.date).startOf('day').toDate(), createdBy: req.user!.id, updatedBy: req.user!.id } as any,
       include: includeRefs,
     });
     await audit({ entity: 'fleet_allocations', entityId: allocation.id, action: 'create', actor: actorFrom(req), after: allocation });
@@ -89,7 +100,7 @@ allocationsRouter.patch(
   asyncHandler(async (req, res) => {
     const before = await prisma.fleetAllocation.findUnique({ where: { id: req.params.id } });
     if (!before) throw NotFound('Allocation not found');
-    const data = { ...req.body, updatedBy: req.user!.id };
+    const data: any = { ...coerceTrips(req.body), updatedBy: req.user!.id };
     if (req.body.date) data.date = dayjs(req.body.date).startOf('day').toDate();
     const allocation = await prisma.fleetAllocation.update({ where: { id: req.params.id }, data, include: includeRefs });
     await audit({ entity: 'fleet_allocations', entityId: allocation.id, action: 'update', actor: actorFrom(req), before, after: allocation });
@@ -105,7 +116,11 @@ allocationsRouter.post(
   asyncHandler(async (req, res) => {
     const before = await prisma.fleetAllocation.findUnique({ where: { id: req.params.id } });
     if (!before) throw NotFound('Allocation not found');
-    const allocation = await prisma.fleetAllocation.update({ where: { id: req.params.id }, data: { status: req.body.status, updatedBy: req.user!.id }, include: includeRefs });
+    // Auto-stamp actual trip start/end when moving through the lifecycle.
+    const stamp: Record<string, unknown> = { status: req.body.status, updatedBy: req.user!.id };
+    if (req.body.status === 'active' && !before.tripStartAt) stamp.tripStartAt = new Date();
+    if (req.body.status === 'completed' && !before.tripEndAt) stamp.tripEndAt = new Date();
+    const allocation = await prisma.fleetAllocation.update({ where: { id: req.params.id }, data: stamp, include: includeRefs });
     await audit({ entity: 'fleet_allocations', entityId: allocation.id, action: 'update', actor: actorFrom(req), before: { status: before.status }, after: { status: allocation.status } });
     res.json(allocation);
   })

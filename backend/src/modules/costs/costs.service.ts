@@ -37,7 +37,7 @@ export async function computeVehicleTco(
   const inPeriod = { gte: from, lte: to };
   const buckets: CostBuckets = emptyBuckets();
 
-  const [fuelAgg, jobs, tyres, fines] = await Promise.all([
+  const [fuelAgg, jobs, tyres, fines, invoices] = await Promise.all([
     prisma.fuelTransaction.aggregate({
       where: { vehicleId, isActive: true, filledAt: inPeriod, OR: [{ approvalStatus: null }, { approvalStatus: 'approved' }] },
       _sum: { amount: true },
@@ -45,13 +45,22 @@ export async function computeVehicleTco(
     prisma.jobCard.aggregate({ where: { vehicleId, isActive: true, dateIn: inPeriod }, _sum: { totalCost: true } }),
     prisma.tyre.aggregate({ where: { vehicleId, fitmentDate: inPeriod }, _sum: { cost: true } }),
     prisma.fine.aggregate({ where: { vehicleId, isActive: true, offenceAt: inPeriod }, _sum: { amount: true } }),
+    // Vendor invoices supply insurance & permit/branding charges for the period.
+    prisma.vendorInvoice.groupBy({
+      by: ['category'],
+      where: { vehicleId, isActive: true, invoiceDate: inPeriod, category: { in: ['insurance', 'permit', 'branding'] } },
+      _sum: { amount: true },
+    }),
   ]);
 
   buckets.fuel = Number(fuelAgg._sum.amount ?? 0);
   buckets.maintenance = Number(jobs._sum.totalCost ?? 0);
   buckets.tyres = Number(tyres._sum.cost ?? 0);
   buckets.fines = Number(fines._sum.amount ?? 0);
-  buckets.insurance = 0; // premium not tracked as a cost line; see DECISIONS.md
+  buckets.insurance = Number(invoices.find((i) => i.category === 'insurance')?._sum.amount ?? 0);
+  buckets.permit =
+    Number(invoices.find((i) => i.category === 'permit')?._sum.amount ?? 0) +
+    Number(invoices.find((i) => i.category === 'branding')?._sum.amount ?? 0);
   buckets.salik = 0; // Salik spend not tracked (balance only); see DECISIONS.md
 
   // Depreciation (straight-line) prorated across the period.
@@ -85,6 +94,50 @@ export async function computeVehicleTco(
     totalCost: total,
     costPerKm: costPerKm(total, kmRun),
     cashCostPerKm: costPerKm(cash, kmRun),
+  };
+}
+
+export interface FleetAssets {
+  totalPurchaseValue: number;
+  totalBookValue: number; // net of accumulated depreciation
+  totalDepreciation: number; // accumulated to date
+  vehicleCount: number;
+  vehicles: {
+    vehicleId: string; plate: string; purchasePrice: number; accumulatedDepreciation: number; bookValue: number;
+  }[];
+}
+
+// Fleet-wide asset value: total purchased vs. net book value after straight-line
+// depreciation to date (floored at residual value).
+export async function computeFleetAssets(): Promise<FleetAssets> {
+  const defaultLife = await getSetting('depreciation.usefulLifeYears');
+  const vehicles = await prisma.vehicle.findMany({
+    where: { isActive: true, status: { not: 'disposed' } },
+    include: { purchase: true },
+  });
+  const now = dayjs();
+  const rows: FleetAssets['vehicles'] = [];
+  for (const v of vehicles) {
+    const price = Number(v.purchase?.purchasePrice ?? 0);
+    if (price <= 0) continue;
+    const residual = Number(v.residualValue ?? v.purchase?.residualValue ?? 0);
+    const life = v.usefulLifeYears ?? v.purchase?.usefulLifeYears ?? defaultLife;
+    const purchaseDate = v.purchase?.purchaseDate ? dayjs(v.purchase.purchaseDate) : now;
+    const yearsElapsed = Math.max(0, now.diff(purchaseDate, 'day') / 365);
+    const annual = life > 0 ? Math.max(0, price - residual) / life : 0;
+    const accumulated = Math.min(Math.max(0, price - residual), +(annual * yearsElapsed).toFixed(2));
+    const bookValue = +(price - accumulated).toFixed(2);
+    rows.push({
+      vehicleId: v.id, plate: `${v.plateNumber} (${v.plateEmirate})`,
+      purchasePrice: price, accumulatedDepreciation: +accumulated.toFixed(2), bookValue,
+    });
+  }
+  return {
+    totalPurchaseValue: +rows.reduce((s, r) => s + r.purchasePrice, 0).toFixed(2),
+    totalBookValue: +rows.reduce((s, r) => s + r.bookValue, 0).toFixed(2),
+    totalDepreciation: +rows.reduce((s, r) => s + r.accumulatedDepreciation, 0).toFixed(2),
+    vehicleCount: rows.length,
+    vehicles: rows,
   };
 }
 

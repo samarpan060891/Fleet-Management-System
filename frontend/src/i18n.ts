@@ -19,6 +19,7 @@ const en: Dict = {
   'nav.fines': 'Fines & Salik',
   'nav.incidents': 'Incidents',
   'nav.costs': 'Costs & TCO',
+  'nav.payments': 'Vendor Payments',
   'nav.transport': 'Staff Transport',
   'nav.availability': 'Availability',
   'nav.allocation': 'Fleet Allocation',

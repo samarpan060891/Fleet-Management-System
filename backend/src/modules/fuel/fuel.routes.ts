@@ -231,6 +231,29 @@ fuelRouter.post(
   })
 );
 
+// Fuel price trend — average rate (AED/litre) per month across the fleet.
+fuelRouter.get(
+  '/price-trend',
+  authorize('fuel', 'read'),
+  asyncHandler(async (_req, res) => {
+    const rows = await prisma.fuelTransaction.findMany({
+      where: { isActive: true, rate: { not: null } },
+      select: { filledAt: true, rate: true },
+      orderBy: { filledAt: 'asc' },
+    });
+    const byMonth = new Map<string, { sum: number; n: number }>();
+    for (const r of rows) {
+      const key = r.filledAt.toISOString().slice(0, 7); // YYYY-MM
+      const cur = byMonth.get(key) ?? { sum: 0, n: 0 };
+      cur.sum += Number(r.rate);
+      cur.n += 1;
+      byMonth.set(key, cur);
+    }
+    const trend = [...byMonth.entries()].map(([month, v]) => ({ month, avgRate: +(v.sum / v.n).toFixed(3), fills: v.n }));
+    res.json(trend);
+  })
+);
+
 // Efficiency series for a vehicle (charts).
 fuelRouter.get(
   '/efficiency/:vehicleId',

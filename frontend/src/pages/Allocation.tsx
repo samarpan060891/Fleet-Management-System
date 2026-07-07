@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
 import { Box, Card, Chip, Button, Tabs, Tab, TextField, Grid } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DoneIcon from '@mui/icons-material/Done';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -33,6 +34,7 @@ export default function Allocation() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [tab, setTab] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
+  const [editRow, setEditRow] = useState<any | null>(null);
 
   const routes = useQuery({ queryKey: ['alloc-routes'], queryFn: async () => (await api.get('/transport/routes')).data, staleTime: 60000 });
   const routeOptions = (routes.data ?? []).map((r: any) => ({ value: r.id, label: `${r.code} · ${r.name}` }));
@@ -46,6 +48,7 @@ export default function Allocation() {
 
   const inv = () => { qc.invalidateQueries({ queryKey: ['allocations'] }); qc.invalidateQueries({ queryKey: ['alloc-summary'] }); qc.invalidateQueries({ queryKey: ['availability'] }); };
   const create = useMutation({ mutationFn: async (b: Record<string, unknown>) => (await api.post('/allocations', b)).data, onSuccess: () => { inv(); setAddOpen(false); } });
+  const update = useMutation({ mutationFn: async ({ id, b }: { id: string; b: Record<string, unknown> }) => (await api.patch(`/allocations/${id}`, b)).data, onSuccess: () => { inv(); setEditRow(null); } });
   const setStatus = useMutation({ mutationFn: async ({ id, status }: { id: string; status: string }) => (await api.post(`/allocations/${id}/status`, { status })).data, onSuccess: inv });
 
   const fields: FieldDef[] = [
@@ -58,10 +61,24 @@ export default function Allocation() {
     { name: 'reference', label: 'Customer / delivery reference', half: true, showIf: (v) => v.type === 'customer_delivery' },
     { name: 'area', label: 'Area', half: true, showIf: (v) => v.type === 'customer_delivery' },
     { name: 'emirate', label: 'Emirate', half: true, showIf: (v) => v.type === 'customer_delivery' },
-    { name: 'startTime', label: 'Start time (e.g. 08:00)', half: true },
-    { name: 'endTime', label: 'End time', half: true },
+    { name: 'startTime', label: 'Planned start (e.g. 08:00)', half: true },
+    { name: 'endTime', label: 'Planned end', half: true },
+    { name: 'waitingMinutes', label: 'Waiting time (minutes)', type: 'number', half: true },
     { name: 'notes', label: 'Notes', type: 'multiline' },
   ];
+  const editFields: FieldDef[] = [
+    { name: 'startTime', label: 'Planned start', half: true },
+    { name: 'endTime', label: 'Planned end', half: true },
+    { name: 'waitingMinutes', label: 'Waiting time (minutes)', type: 'number', half: true },
+    { name: 'notes', label: 'Notes', type: 'multiline' },
+  ];
+
+  const timeOf = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—');
+  const tripDuration = (r: any) => {
+    if (!r.tripStartAt || !r.tripEndAt) return '—';
+    const mins = Math.round((new Date(r.tripEndAt).getTime() - new Date(r.tripStartAt).getTime()) / 60000);
+    return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+  };
 
   const destination = (r: any) => {
     if (r.type === 'store_delivery') return r.store ? `${r.store.code} · ${r.store.name}` : '—';
@@ -75,13 +92,16 @@ export default function Allocation() {
     { field: 'vehicle', headerName: 'Vehicle', width: 140, valueGetter: (_v, r) => r.vehicle ? `${r.vehicle.plateNumber} (${r.vehicle.plateEmirate})` : '—' },
     { field: 'driver', headerName: 'Driver', width: 140, valueGetter: (_v, r) => r.driver?.fullName ?? '—' },
     { field: 'destination', headerName: 'Destination', width: 220, valueGetter: (_v, r) => destination(r) },
-    { field: 'time', headerName: 'Time', width: 120, valueGetter: (_v, r) => [r.startTime, r.endTime].filter(Boolean).join(' – ') || '—' },
+    { field: 'trip', headerName: 'Trip (actual)', width: 130, valueGetter: (_v, r) => `${timeOf(r.tripStartAt)} – ${timeOf(r.tripEndAt)}` },
+    { field: 'duration', headerName: 'Duration', width: 100, valueGetter: (_v, r) => tripDuration(r) },
+    { field: 'waitingMinutes', headerName: 'Waiting', width: 90, valueGetter: (_v, r) => (r.waitingMinutes != null ? `${r.waitingMinutes}m` : '—') },
     { field: 'status', headerName: 'Status', width: 110, renderCell: (p) => <Chip size="small" color={STATUS_COLOR[p.value as string]} label={p.value as string} /> },
     { field: '__a', type: 'actions', headerName: '', width: 60, getActions: (p) => {
       if (!can('allocations:update')) return [];
       const items = [];
-      if (p.row.status === 'planned') items.push(<GridActionsCellItem key="s" icon={<PlayArrowIcon />} label="Start" onClick={() => setStatus.mutate({ id: p.row.id, status: 'active' })} />);
-      if (p.row.status === 'active') items.push(<GridActionsCellItem key="c" icon={<DoneIcon />} label="Complete" onClick={() => setStatus.mutate({ id: p.row.id, status: 'completed' })} />);
+      if (p.row.status === 'planned') items.push(<GridActionsCellItem key="s" icon={<PlayArrowIcon />} label="Start trip" onClick={() => setStatus.mutate({ id: p.row.id, status: 'active' })} />);
+      if (p.row.status === 'active') items.push(<GridActionsCellItem key="c" icon={<DoneIcon />} label="End trip" onClick={() => setStatus.mutate({ id: p.row.id, status: 'completed' })} />);
+      items.push(<GridActionsCellItem key="e" icon={<EditIcon />} label="Edit / waiting time" showInMenu onClick={() => setEditRow(p.row)} />);
       if (p.row.status !== 'completed' && p.row.status !== 'cancelled') items.push(<GridActionsCellItem key="x" icon={<CancelIcon />} label="Cancel" showInMenu onClick={() => setStatus.mutate({ id: p.row.id, status: 'cancelled' })} />);
       return items;
     } },
@@ -119,6 +139,10 @@ export default function Allocation() {
         initial={{ date }}
         submitting={create.isPending} error={create.error ? apiError(create.error) : null}
         onClose={() => setAddOpen(false)} onSubmit={(v) => create.mutate(v)} />
+      <FormDialog open={!!editRow} title="Edit allocation" fields={editFields}
+        initial={editRow ?? undefined}
+        submitting={update.isPending} error={update.error ? apiError(update.error) : null}
+        onClose={() => setEditRow(null)} onSubmit={(v) => update.mutate({ id: editRow.id, b: v })} />
     </Box>
   );
 }

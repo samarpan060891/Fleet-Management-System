@@ -8,6 +8,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import GavelIcon from '@mui/icons-material/Gavel';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import PaidIcon from '@mui/icons-material/Paid';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import AirportShuttleIcon from '@mui/icons-material/AirportShuttle';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
@@ -52,6 +53,7 @@ export const NAV: NavItem[] = [
   { key: 'fines', path: '/fines', labelKey: 'nav.fines', icon: GavelIcon, requires: 'fines:read' },
   { key: 'incidents', path: '/incidents', labelKey: 'nav.incidents', icon: ReportProblemIcon, requires: 'incidents:read' },
   { key: 'costs', path: '/costs', labelKey: 'nav.costs', icon: PaidIcon, requires: 'costs:read' },
+  { key: 'payments', path: '/payments', labelKey: 'nav.payments', icon: ReceiptLongIcon, requires: 'payments:read' },
   { key: 'transport', path: '/transport', labelKey: 'nav.transport', icon: AirportShuttleIcon, requires: 'transport:read' },
   { key: 'reports', path: '/reports', labelKey: 'nav.reports', icon: AssessmentIcon, requires: 'reports:read' },
   { key: 'audit', path: '/audit', labelKey: 'nav.audit', icon: HistoryIcon, requires: 'audit:read' },

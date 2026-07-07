@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
-import { Box, Card, Chip, Button, Stack, Alert } from '@mui/material';
+import { Box, Card, CardContent, Typography, Chip, Button, Stack, Alert } from '@mui/material';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import AddIcon from '@mui/icons-material/Add';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
@@ -27,6 +28,7 @@ export default function Fuel() {
     queryFn: async () => (await api.get('/fuel/pending-approvals')).data,
     enabled: can('fuel:approve'),
   });
+  const trend = useQuery({ queryKey: ['fuel-price-trend'], queryFn: async () => (await api.get('/fuel/price-trend')).data });
 
   const approve = useMutation({
     mutationFn: async ({ id, ok }: { id: string; ok: boolean }) => (await api.post(`/fuel/${id}/approve`, { approve: ok, reason: ok ? undefined : 'Rejected' })).data,
@@ -78,6 +80,21 @@ export default function Fuel() {
         title="Fuel" subtitle="3-channel entry · odometer-linked efficiency · cash approval workflow"
         action={can('fuel:create') && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>Log fuel</Button>}
       />
+      {(trend.data?.length ?? 0) > 1 && (
+        <Card sx={{ mb: 2 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>Fuel price trend (avg AED / litre)</Typography>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={trend.data}>
+                <XAxis dataKey="month" fontSize={12} />
+                <YAxis domain={['auto', 'auto']} fontSize={12} />
+                <Tooltip formatter={(v: number) => `AED ${v}`} />
+                <Line type="monotone" dataKey="avgRate" stroke="#0f6e6e" strokeWidth={2} dot />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
       {can('fuel:approve') && (pending.data?.length ?? 0) > 0 && (
         <Card sx={{ mb: 2 }}>
           <Alert severity="warning" sx={{ borderRadius: 0 }}>Cash fills awaiting Fleet Manager approval</Alert>

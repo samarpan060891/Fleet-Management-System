@@ -25,6 +25,7 @@ import Employees from './pages/Employees';
 import Users from './pages/Users';
 import Odometer from './pages/Odometer';
 import Allocation from './pages/Allocation';
+import Payments from './pages/Payments';
 import Placeholder from './pages/Placeholder';
 
 function Loader() {
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="/fines" element={<Fines />} />
         <Route path="/incidents" element={<Incidents />} />
         <Route path="/costs" element={<Costs />} />
+        <Route path="/payments" element={<Payments />} />
         <Route path="/transport" element={<Transport />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/audit" element={<AuditLog />} />

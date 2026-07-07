@@ -37,6 +37,7 @@ const DOC_LABEL: Record<DocType, string> = {
   tasjeel: 'Technical inspection (Tasjeel)',
   lease: 'Lease',
   warranty: 'Warranty',
+  permit: 'Operating/branding permit',
   licence: 'Driving licence',
   emirates_id: 'Emirates ID',
   visa: 'Visa',

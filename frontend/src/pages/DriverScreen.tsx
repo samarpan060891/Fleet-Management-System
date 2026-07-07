@@ -72,6 +72,30 @@ export default function DriverScreen() {
         <Alert severity="info" sx={{ mb: 2 }}>No vehicle currently assigned to you.</Alert>
       )}
 
+      {(data.allocations ?? []).length > 0 && (
+        <>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>My allocations today</Typography>
+          <Card sx={{ mb: 2 }}>
+            <CardContent>
+              <Stack spacing={1}>
+                {(data.allocations as { id: string; type: string; status: string; startTime: string | null; destination: string | null }[]).map((a) => (
+                  <Box key={a.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box>
+                      <Typography variant="body2">
+                        {a.type === 'customer_delivery' ? 'Customer delivery' : a.type === 'store_delivery' ? 'Store delivery' : 'Staff pick & drop'}
+                        {a.startTime ? ` · ${a.startTime}` : ''}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">{a.destination ?? '—'}</Typography>
+                    </Box>
+                    <Chip size="small" color={a.status === 'active' ? 'info' : 'default'} label={a.status} />
+                  </Box>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
       <Typography variant="subtitle2" sx={{ mb: 1 }}>My documents</Typography>
       <Card sx={{ mb: 2 }}>
         <CardContent>

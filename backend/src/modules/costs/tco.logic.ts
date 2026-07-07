@@ -5,6 +5,7 @@ export interface CostBuckets {
   maintenance: number;
   tyres: number;
   insurance: number;
+  permit: number;
   salik: number;
   fines: number;
   depreciation: number;
@@ -15,6 +16,7 @@ export const emptyBuckets = (): CostBuckets => ({
   maintenance: 0,
   tyres: 0,
   insurance: 0,
+  permit: 0,
   salik: 0,
   fines: 0,
   depreciation: 0,
@@ -37,7 +39,7 @@ export function depreciationForPeriod(params: {
 
 // Cash cost excludes depreciation; total cost includes it.
 export function cashCost(b: CostBuckets): number {
-  return +(b.fuel + b.maintenance + b.tyres + b.insurance + b.salik + b.fines).toFixed(2);
+  return +(b.fuel + b.maintenance + b.tyres + b.insurance + b.permit + b.salik + b.fines).toFixed(2);
 }
 
 export function totalCostWithDepreciation(b: CostBuckets): number {
