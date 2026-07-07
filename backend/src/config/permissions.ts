@@ -20,6 +20,7 @@ export type Permission = `${string}:${Action}`;
 // Resources across the modules.
 export const RESOURCES = [
   'vehicles',
+  'odometer',
   'drivers',
   'vendors',
   'stores',
@@ -71,6 +72,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   WORKSHOP: [
     ...base,
     ...read('vehicles'),
+    ...read('odometer'),
     ...read('drivers'),
     ...read('vendors'),
     ...crud('maintenance'),
@@ -110,6 +112,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   TRANSPORT_COORDINATOR: [
     ...base,
     ...read('vehicles'),
+    ...read('odometer'),
+    'odometer:create',
     ...read('drivers'),
     ...read('employees'),
     'employees:create',
@@ -146,12 +150,15 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'attendance:create',
     'attendance:update',
     'fuel:create',
+    'odometer:create',
+    'odometer:read',
   ],
 
   // Read-only high-level KPIs, cost trends, availability.
   MANAGEMENT: [
     ...base,
     ...read('vehicles'),
+    ...read('odometer'),
     ...read('costs'),
     ...read('availability'),
     ...read('reports'),

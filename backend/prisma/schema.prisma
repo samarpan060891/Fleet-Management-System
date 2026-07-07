@@ -251,6 +251,7 @@ model Vehicle {
   disposal        VehicleDisposal?
   routes          Route[]
   alerts          Alert[]
+  odometerReadings OdometerReading[]
 
   @@unique([plateNumber, plateEmirate])
   @@index([status])
@@ -454,6 +455,23 @@ model FuelTransaction {
   @@index([vehicleId, filledAt])
   @@index([channel, approvalStatus])
   @@map("fuel_transactions")
+}
+
+// Daily odometer readings. Each reading pushes the vehicle's current_odometer
+// forward (never backward), which drives preventive-maintenance due dates.
+model OdometerReading {
+  id          String   @id @default(uuid())
+  vehicleId   String   @map("vehicle_id")
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
+  readingDate DateTime @map("reading_date")
+  odometer    Int
+  source      String   @default("manual") // manual | excel | fuel | service
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdBy   String?  @map("created_by")
+
+  @@index([vehicleId, readingDate])
+  @@map("odometer_readings")
 }
 
 // ---------------------------------------------------------------------------

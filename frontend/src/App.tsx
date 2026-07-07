@@ -23,6 +23,7 @@ import Vendors from './pages/Vendors';
 import Stores from './pages/Stores';
 import Employees from './pages/Employees';
 import Users from './pages/Users';
+import Odometer from './pages/Odometer';
 import Placeholder from './pages/Placeholder';
 
 function Loader() {
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/vehicles" element={<Vehicles />} />
         <Route path="/drivers" element={<Drivers />} />
         <Route path="/fuel" element={<Fuel />} />
+        <Route path="/odometer" element={<Odometer />} />
         <Route path="/vendors" element={<Vendors />} />
         <Route path="/stores" element={<Stores />} />
         <Route path="/employees" element={<Employees />} />

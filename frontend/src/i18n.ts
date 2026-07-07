@@ -12,6 +12,7 @@ const en: Dict = {
   'nav.stores': 'Stores & Depots',
   'nav.employees': 'Employees',
   'nav.users': 'Users',
+  'nav.odometer': 'Odometer',
   'nav.compliance': 'Compliance',
   'nav.alerts': 'Alert Centre',
   'nav.maintenance': 'Maintenance',

@@ -14,6 +14,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import SettingsIcon from '@mui/icons-material/Settings';
 import HistoryIcon from '@mui/icons-material/History';
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
+import SpeedIcon from '@mui/icons-material/Speed';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import StoreIcon from '@mui/icons-material/Store';
 import BadgeIcon from '@mui/icons-material/Badge';
@@ -42,6 +43,7 @@ export const NAV: NavItem[] = [
   { key: 'vendors', path: '/vendors', labelKey: 'nav.vendors', icon: StorefrontIcon, requires: 'vendors:read' },
   { key: 'stores', path: '/stores', labelKey: 'nav.stores', icon: StoreIcon, requires: 'stores:read' },
   { key: 'employees', path: '/employees', labelKey: 'nav.employees', icon: BadgeIcon, requires: 'employees:read' },
+  { key: 'odometer', path: '/odometer', labelKey: 'nav.odometer', icon: SpeedIcon, requires: 'odometer:read' },
   { key: 'maintenance', path: '/maintenance', labelKey: 'nav.maintenance', icon: BuildIcon, requires: 'maintenance:read' },
   { key: 'compliance', path: '/compliance', labelKey: 'nav.compliance', icon: VerifiedUserIcon, requires: 'compliance:read' },
   { key: 'alerts', path: '/alerts', labelKey: 'nav.alerts', icon: NotificationsActiveIcon, requires: 'alerts:read' },

@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { Resource } from '../../config/permissions';
 import { driverOnDate } from '../assignments/assignments.service';
+import { recordReading } from '../odometer/odometer.service';
 
 export type ColType = 'string' | 'number' | 'date' | 'boolean';
 
@@ -173,6 +174,34 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       return data;
     },
     create: async (data, db, actorId) => (await db.complianceDocument.create({ data: withAudit(data, actorId) as Prisma.ComplianceDocumentUncheckedCreateInput })).id,
+  },
+
+  odometer: {
+    label: 'Odometer Readings',
+    permission: 'odometer',
+    columns: [
+      { key: 'vehiclePlate', label: 'Vehicle Plate', required: true, example: 'A-12345' },
+      { key: 'vehicleEmirate', label: 'Vehicle Emirate', example: 'Dubai' },
+      { key: 'readingDate', label: 'Reading Date', type: 'date', required: true, example: '2026-07-01' },
+      { key: 'odometer', label: 'Odometer (km)', type: 'number', required: true, example: '45200' },
+      { key: 'note', label: 'Note' },
+    ],
+    build: async (row, db) => {
+      const vehicleId = await resolveVehicle(db, row.vehiclePlate, row.vehicleEmirate);
+      return { vehicleId, readingDate: row.readingDate, odometer: row.odometer, note: row.note };
+    },
+    // Advances the vehicle's current odometer (which drives PM).
+    create: async (data, db, actorId) => {
+      const r = await recordReading(db, {
+        vehicleId: data.vehicleId as string,
+        readingDate: data.readingDate as Date,
+        odometer: data.odometer as number,
+        source: 'excel',
+        note: data.note as string | undefined,
+        actorId,
+      });
+      return r.id;
+    },
   },
 
   fines: {
