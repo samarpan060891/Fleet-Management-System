@@ -37,7 +37,7 @@ export default function Layout() {
     <Box>
       <Toolbar sx={{ gap: 1 }}>
         <LocalShippingIcon color="primary" />
-        <Typography variant="h6" color="primary" noWrap>Fleet MS</Typography>
+        <Typography variant="h6" color="primary" noWrap>FMS</Typography>
       </Toolbar>
       <Divider />
       <List sx={{ px: 1 }}>

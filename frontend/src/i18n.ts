@@ -3,7 +3,7 @@
 type Dict = Record<string, string>;
 
 const en: Dict = {
-  'app.title': 'UAE Fleet Management',
+  'app.title': 'FMS - Fleet Management System',
   'nav.dashboard': 'Dashboard',
   'nav.vehicles': 'Vehicles',
   'nav.drivers': 'Drivers',
