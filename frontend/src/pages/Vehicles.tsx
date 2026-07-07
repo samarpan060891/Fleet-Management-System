@@ -54,7 +54,7 @@ export default function Vehicles() {
     <CrudListPage
       title="Vehicles" subtitle="Fleet master — add, edit and manage vehicles"
       resource="vehicles" queryKey="vehicles" permission="vehicles"
-      columns={columns} fields={fields}
+      columns={columns} fields={fields} importable
     />
   );
 }

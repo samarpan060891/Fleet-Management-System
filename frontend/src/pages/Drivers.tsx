@@ -40,7 +40,7 @@ export default function Drivers() {
     <CrudListPage
       title="Drivers" subtitle="Driver master — identity, licence and document expiries"
       resource="drivers" queryKey="drivers" permission="drivers"
-      columns={columns} fields={fields}
+      columns={columns} fields={fields} importable
     />
   );
 }

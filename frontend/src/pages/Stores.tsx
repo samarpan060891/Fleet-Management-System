@@ -20,5 +20,5 @@ const fields: FieldDef[] = [
 ];
 
 export default function Stores() {
-  return <CrudListPage title="Stores & Depots" subtitle="13 stores + depots used for assignment and the availability board" resource="stores" queryKey="stores" permission="stores" columns={columns} fields={fields} />;
+  return <CrudListPage title="Stores & Depots" subtitle="13 stores + depots used for assignment and the availability board" resource="stores" queryKey="stores" permission="stores" columns={columns} fields={fields} importable />;
 }

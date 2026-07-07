@@ -19,5 +19,5 @@ const fields: FieldDef[] = [
 ];
 
 export default function Employees() {
-  return <CrudListPage title="Employees" subtitle="Staff-transport passengers (mapped to routes)" resource="employees" queryKey="employees" permission="employees" columns={columns} fields={fields} />;
+  return <CrudListPage title="Employees" subtitle="Staff-transport passengers (mapped to routes)" resource="employees" queryKey="employees" permission="employees" columns={columns} fields={fields} importable />;
 }

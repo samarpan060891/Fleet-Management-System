@@ -25,5 +25,5 @@ const fields: FieldDef[] = [
 ];
 
 export default function Vendors() {
-  return <CrudListPage title="Vendors" subtitle="Workshops, tyre & fuel suppliers, insurers, lessors" resource="vendors" queryKey="vendors" permission="vendors" columns={columns} fields={fields} />;
+  return <CrudListPage title="Vendors" subtitle="Workshops, tyre & fuel suppliers, insurers, lessors" resource="vendors" queryKey="vendors" permission="vendors" columns={columns} fields={fields} importable />;
 }

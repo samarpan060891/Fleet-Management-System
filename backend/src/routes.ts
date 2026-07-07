@@ -21,6 +21,7 @@ import { settingsRouter } from './modules/settings/settings.routes';
 import { usersRouter } from './modules/users/users.routes';
 import { auditRouter } from './modules/audit/audit.routes';
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
+import { importRouter } from './modules/import/import.routes';
 
 // Central API registry. Each module is independent (shares vehicle/driver master
 // only), so IT can maintain any one without breaking the others.
@@ -48,3 +49,4 @@ apiRouter.use('/inventory', inventoryRouter);
 apiRouter.use('/settings', settingsRouter);
 apiRouter.use('/users', usersRouter);
 apiRouter.use('/audit', auditRouter);
+apiRouter.use('/import', importRouter);

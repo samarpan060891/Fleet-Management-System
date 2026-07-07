@@ -47,7 +47,7 @@ export default function Compliance() {
     <CrudListPage
       title="Compliance Register" subtitle="All vehicle & driver document expiries in one place"
       resource="compliance" queryKey="compliance" permission="compliance"
-      columns={columns} fields={fields}
+      columns={columns} fields={fields} importable
       toInitial={(r) => ({ ...r, vehicleId: r.vehicleId, driverId: r.driverId })}
     />
   );

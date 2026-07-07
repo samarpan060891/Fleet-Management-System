@@ -5,9 +5,11 @@ import { Box, Card, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { api } from '../api/client';
 import { PageHeader } from './ui';
 import FormDialog, { FieldDef } from './FormDialog';
+import ImportDialog from './ImportDialog';
 import { useCrud } from '../hooks/useCrud';
 import { apiError } from '../hooks/useLookups';
 import { useAuth } from '../auth/AuthContext';
@@ -26,12 +28,14 @@ interface Props {
   extraToolbar?: ReactNode;
   pageSize?: number;
   hideDelete?: boolean;          // for resources without a delete endpoint
+  importable?: boolean;          // show a bulk-import (Excel) button
 }
 
 // Generic list + Add/Edit/Delete page for standard REST resources.
 export default function CrudListPage(props: Props) {
   const { can } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
 
   const canCreate = can(`${props.permission}:create`);
@@ -79,6 +83,7 @@ export default function CrudListPage(props: Props) {
         action={
           <Box sx={{ display: 'flex', gap: 1 }}>
             {props.extraToolbar}
+            {props.importable && canCreate && <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportOpen(true)}>Import</Button>}
             {canCreate && <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Add</Button>}
           </Box>
         }
@@ -101,6 +106,13 @@ export default function CrudListPage(props: Props) {
         onClose={() => setDialogOpen(false)}
         onSubmit={submit}
       />
+      {props.importable && (
+        <ImportDialog
+          open={importOpen} resource={props.resource} label={props.title}
+          onClose={() => setImportOpen(false)}
+          onImported={() => list.refetch()}
+        />
+      )}
     </Box>
   );
 }

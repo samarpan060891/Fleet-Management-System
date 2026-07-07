@@ -3,11 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
 import { Box, Card, Chip, Tabs, Tab, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import PaidIcon from '@mui/icons-material/Paid';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import { api } from '../api/client';
 import { PageHeader, StatusChip } from '../components/ui';
 import FormDialog, { FieldDef } from '../components/FormDialog';
+import ImportDialog from '../components/ImportDialog';
 import { fmtCurrency, fmtDate } from '../i18n';
 import { useAuth } from '../auth/AuthContext';
 import { useLookups, apiError } from '../hooks/useLookups';
@@ -18,6 +20,7 @@ export default function Fines() {
   const { vehicleOptions, driverOptions } = useLookups();
   const [tab, setTab] = useState(0);
   const [addFine, setAddFine] = useState(false);
+  const [importFines, setImportFines] = useState(false);
   const [addSalik, setAddSalik] = useState(false);
   const [reassign, setReassign] = useState<any | null>(null);
 
@@ -72,7 +75,12 @@ export default function Fines() {
       <PageHeader
         title="Fines & Salik" subtitle="Manual entry · fines auto-attributed to the assigned driver (* = overridden)"
         action={tab === 0
-          ? can('fines:create') && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddFine(true)}>Add fine</Button>
+          ? can('fines:create') && (
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportFines(true)}>Import</Button>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddFine(true)}>Add fine</Button>
+            </Box>
+          )
           : can('salik:update') && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddSalik(true)}>Set Salik</Button>}
       />
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}><Tab label="Fines" /><Tab label="Salik" /></Tabs>
@@ -91,6 +99,7 @@ export default function Fines() {
         fields={[{ name: 'driverId', label: 'Driver', type: 'select', required: true, options: driverOptions }]}
         submitting={reassignMut.isPending} error={reassignMut.error ? apiError(reassignMut.error) : null}
         onClose={() => setReassign(null)} onSubmit={(v) => reassignMut.mutate({ id: reassign.id, driverId: v.driverId as string })} />
+      <ImportDialog open={importFines} resource="fines" label="Fines" onClose={() => setImportFines(false)} onImported={() => qc.invalidateQueries({ queryKey: ['fines'] })} />
     </Box>
   );
 }
