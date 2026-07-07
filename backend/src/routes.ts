@@ -1,0 +1,50 @@
+import { Router } from 'express';
+import { vehiclesRouter } from './modules/vehicles/vehicles.routes';
+import { driversRouter } from './modules/drivers/drivers.routes';
+import { vendorsRouter } from './modules/vendors/vendors.routes';
+import { storesRouter } from './modules/stores/stores.routes';
+import { employeesRouter } from './modules/employees/employees.routes';
+import { fuelRouter } from './modules/fuel/fuel.routes';
+import { complianceRouter } from './modules/compliance/compliance.routes';
+import { maintenanceRouter } from './modules/maintenance/maintenance.routes';
+import { finesRouter } from './modules/fines/fines.routes';
+import { salikRouter } from './modules/salik/salik.routes';
+import { incidentsRouter } from './modules/incidents/incidents.routes';
+import { costsRouter } from './modules/costs/costs.routes';
+import { transportRouter } from './modules/transport/transport.routes';
+import { attendanceRouter } from './modules/attendance/attendance.routes';
+import { availabilityRouter } from './modules/availability/availability.routes';
+import { alertsRouter } from './modules/alerts/alerts.routes';
+import { reportsRouter } from './modules/reports/reports.routes';
+import { inventoryRouter } from './modules/inventory/inventory.routes';
+import { settingsRouter } from './modules/settings/settings.routes';
+import { usersRouter } from './modules/users/users.routes';
+import { auditRouter } from './modules/audit/audit.routes';
+import { dashboardRouter } from './modules/dashboard/dashboard.routes';
+
+// Central API registry. Each module is independent (shares vehicle/driver master
+// only), so IT can maintain any one without breaking the others.
+export const apiRouter = Router();
+
+apiRouter.use('/dashboard', dashboardRouter);
+apiRouter.use('/vehicles', vehiclesRouter);
+apiRouter.use('/drivers', driversRouter);
+apiRouter.use('/vendors', vendorsRouter);
+apiRouter.use('/stores', storesRouter);
+apiRouter.use('/employees', employeesRouter);
+apiRouter.use('/fuel', fuelRouter);
+apiRouter.use('/compliance', complianceRouter);
+apiRouter.use('/maintenance', maintenanceRouter);
+apiRouter.use('/fines', finesRouter);
+apiRouter.use('/salik', salikRouter);
+apiRouter.use('/incidents', incidentsRouter);
+apiRouter.use('/costs', costsRouter);
+apiRouter.use('/transport', transportRouter);
+apiRouter.use('/attendance', attendanceRouter);
+apiRouter.use('/availability', availabilityRouter);
+apiRouter.use('/alerts', alertsRouter);
+apiRouter.use('/reports', reportsRouter);
+apiRouter.use('/inventory', inventoryRouter);
+apiRouter.use('/settings', settingsRouter);
+apiRouter.use('/users', usersRouter);
+apiRouter.use('/audit', auditRouter);
