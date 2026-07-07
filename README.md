@@ -144,3 +144,10 @@ docker-compose.yml
 - [`docs/API.md`](docs/API.md) — REST endpoints per module
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — architecture decisions & assumptions
 - [`docs/HANDOVER.md`](docs/HANDOVER.md) — operational handover for the IT team
+- [`docs/DEPLOY_RAILWAY.md`](docs/DEPLOY_RAILWAY.md) — deploy a live demo on Railway + PostgreSQL
+
+## Deploy a live demo (Railway)
+
+The repo-root `Dockerfile` builds a single web service (the API serving the built
+SPA) that pairs with a managed PostgreSQL. See
+[`docs/DEPLOY_RAILWAY.md`](docs/DEPLOY_RAILWAY.md) for a ~5-minute click-through.

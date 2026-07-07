@@ -49,7 +49,22 @@ export function createApp() {
     );
   }
 
-  app.use((_req, _res, next) => next(NotFound('Route not found')));
+  // Single-service deploy (e.g. Railway): serve the built frontend from the API
+  // process when STATIC_DIR is set. The SPA and API share one origin, so no CORS.
+  const staticDir = process.env.STATIC_DIR;
+  if (staticDir) {
+    app.use(express.static(staticDir));
+  }
+
+  // Unknown API / file routes always return JSON 404 (never the SPA shell).
+  app.use(['/api', '/files'], (_req, _res, next) => next(NotFound('Route not found')));
+
+  if (staticDir) {
+    // Client-side routing fallback for everything else.
+    app.get('*', (_req, res) => res.sendFile(path.join(staticDir, 'index.html')));
+  } else {
+    app.use((_req, _res, next) => next(NotFound('Route not found')));
+  }
   app.use(errorHandler);
 
   return app;
