@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend — build & test
+    runs-on: ubuntu-latest
+
+    # Ephemeral Postgres for migrations + integration tests.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fleet
+          POSTGRES_PASSWORD: fleet_password
+          POSTGRES_DB: fleet_management
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fleet"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://fleet:fleet_password@localhost:5432/fleet_management?schema=public
+      JWT_SECRET: ci_test_secret
+      DISABLE_SCHEDULER: 'true'
+      EMAIL_DRY_RUN: 'true'
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed database (required by integration tests)
+        run: npm run db:seed
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  frontend:
+    name: Frontend — build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check & build
+        run: npm run build
