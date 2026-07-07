@@ -19,6 +19,10 @@ import Reports from './pages/Reports';
 import AuditLog from './pages/AuditLog';
 import Settings from './pages/Settings';
 import DriverScreen from './pages/DriverScreen';
+import Vendors from './pages/Vendors';
+import Stores from './pages/Stores';
+import Employees from './pages/Employees';
+import Users from './pages/Users';
 import Placeholder from './pages/Placeholder';
 
 function Loader() {
@@ -54,6 +58,10 @@ export default function App() {
         <Route path="/vehicles" element={<Vehicles />} />
         <Route path="/drivers" element={<Drivers />} />
         <Route path="/fuel" element={<Fuel />} />
+        <Route path="/vendors" element={<Vendors />} />
+        <Route path="/stores" element={<Stores />} />
+        <Route path="/employees" element={<Employees />} />
+        <Route path="/users" element={<Users />} />
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/compliance" element={<Compliance />} />
         <Route path="/alerts" element={<AlertCentre />} />

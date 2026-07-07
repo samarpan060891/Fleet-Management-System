@@ -14,6 +14,10 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import SettingsIcon from '@mui/icons-material/Settings';
 import HistoryIcon from '@mui/icons-material/History';
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
+import StorefrontIcon from '@mui/icons-material/Storefront';
+import StoreIcon from '@mui/icons-material/Store';
+import BadgeIcon from '@mui/icons-material/Badge';
+import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import { SvgIconComponent } from '@mui/icons-material';
 
 export interface NavItem {
@@ -35,6 +39,9 @@ export const NAV: NavItem[] = [
   { key: 'vehicles', path: '/vehicles', labelKey: 'nav.vehicles', icon: DirectionsCarIcon, requires: 'vehicles:read' },
   { key: 'drivers', path: '/drivers', labelKey: 'nav.drivers', icon: PersonIcon, requires: 'drivers:read' },
   { key: 'fuel', path: '/fuel', labelKey: 'nav.fuel', icon: LocalGasStationIcon, requires: 'fuel:read' },
+  { key: 'vendors', path: '/vendors', labelKey: 'nav.vendors', icon: StorefrontIcon, requires: 'vendors:read' },
+  { key: 'stores', path: '/stores', labelKey: 'nav.stores', icon: StoreIcon, requires: 'stores:read' },
+  { key: 'employees', path: '/employees', labelKey: 'nav.employees', icon: BadgeIcon, requires: 'employees:read' },
   { key: 'maintenance', path: '/maintenance', labelKey: 'nav.maintenance', icon: BuildIcon, requires: 'maintenance:read' },
   { key: 'compliance', path: '/compliance', labelKey: 'nav.compliance', icon: VerifiedUserIcon, requires: 'compliance:read' },
   { key: 'alerts', path: '/alerts', labelKey: 'nav.alerts', icon: NotificationsActiveIcon, requires: 'alerts:read' },
@@ -44,5 +51,6 @@ export const NAV: NavItem[] = [
   { key: 'transport', path: '/transport', labelKey: 'nav.transport', icon: AirportShuttleIcon, requires: 'transport:read' },
   { key: 'reports', path: '/reports', labelKey: 'nav.reports', icon: AssessmentIcon, requires: 'reports:read' },
   { key: 'audit', path: '/audit', labelKey: 'nav.audit', icon: HistoryIcon, requires: 'audit:read' },
+  { key: 'users', path: '/users', labelKey: 'nav.users', icon: ManageAccountsIcon, requires: 'users:read' },
   { key: 'settings', path: '/settings', labelKey: 'nav.settings', icon: SettingsIcon, requires: 'settings:read' },
 ];
