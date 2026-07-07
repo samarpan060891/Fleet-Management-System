@@ -2,8 +2,10 @@
 # Express process. Intended for Railway (or any single-container host).
 # The backend serves the built SPA from STATIC_DIR and runs migrations + an
 # idempotent seed on boot.
+#
+# Uses Debian slim (not alpine) so Prisma's engines find the right OpenSSL.
 
-# --- Frontend build ---
+# --- Frontend build (static output only; base image irrelevant) ---
 FROM node:22-alpine AS frontend
 WORKDIR /fe
 COPY frontend/package*.json ./
@@ -12,8 +14,11 @@ COPY frontend/ ./
 RUN npm run build            # -> /fe/dist
 
 # --- Backend build ---
-FROM node:22-alpine AS backend
+FROM node:22-slim AS backend
 WORKDIR /app
+# Prisma needs OpenSSL present to pick the correct engine binary.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 COPY backend/package*.json ./
 RUN npm ci
 COPY backend/prisma ./prisma
@@ -23,9 +28,11 @@ COPY backend/src ./src
 RUN npm run build            # -> /app/dist
 
 # --- Runtime ---
-FROM node:22-alpine AS runtime
+FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 # node_modules from the backend build stage keep Prisma client + ts-node (seed).
 COPY backend/package*.json ./
 COPY --from=backend /app/node_modules ./node_modules
