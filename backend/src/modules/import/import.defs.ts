@@ -117,7 +117,8 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
     permission: 'vendors',
     columns: [
       { key: 'name', label: 'Name', required: true, example: 'Al Habtoor Workshop' },
-      { key: 'type', label: 'Type', required: true, enumValues: ['workshop', 'tyre_supplier', 'insurance', 'fuel_supplier', 'spare_parts', 'lessor', 'other'], example: 'workshop' },
+      // User-extensible category — any value is accepted (see /option-lists/vendor.type).
+      { key: 'type', label: 'Type', required: true, example: 'workshop' },
       { key: 'contactPerson', label: 'Contact Person' },
       { key: 'phone', label: 'Phone', example: '+97141234567' },
       { key: 'email', label: 'Email' },
@@ -379,7 +380,8 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       { key: 'offenceAt', label: 'Offence Date', type: 'date', required: true, example: '2026-05-01' },
       { key: 'vehiclePlate', label: 'Vehicle Plate', required: true, example: 'A-12345' },
       { key: 'vehicleEmirate', label: 'Vehicle Emirate', example: 'Dubai' },
-      { key: 'type', label: 'Type', required: true, enumValues: ['salik', 'speeding', 'parking', 'other'], example: 'speeding' },
+      // User-extensible category — any value is accepted (see /option-lists/fine.type).
+      { key: 'type', label: 'Type', required: true, example: 'speeding' },
       { key: 'amount', label: 'Amount (AED)', type: 'number', required: true, example: '600' },
       { key: 'authority', label: 'Issuing Authority', example: 'Dubai Police' },
       { key: 'emirate', label: 'Emirate', example: 'Dubai' },

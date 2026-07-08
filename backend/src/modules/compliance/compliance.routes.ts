@@ -12,12 +12,16 @@ import { BadRequest, NotFound } from '../../lib/errors';
 
 export const complianceRouter = Router();
 
+// Fixed (not user-extensible): drives per-type compliance alert windows
+// and the vehicle-availability "blocking documents" gate (see alerts.engine.ts,
+// availability.routes.ts). Must stay in sync with the Prisma DocType enum.
 const docType = z.enum([
   'mulkiya',
   'insurance',
   'tasjeel',
   'lease',
   'warranty',
+  'permit',
   'licence',
   'emirates_id',
   'visa',

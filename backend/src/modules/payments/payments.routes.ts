@@ -11,7 +11,9 @@ import { NotFound } from '../../lib/errors';
 
 export const paymentsRouter = Router();
 
-const category = z.enum(['maintenance', 'tyre', 'insurance', 'permit', 'branding', 'salik', 'other']);
+// A user-extensible category (see /option-lists/payments.category) — accept
+// any non-empty slug rather than a fixed enum.
+const category = z.string().min(1).max(60);
 const createSchema = z.object({
   vendorId: z.string().uuid(),
   vehicleId: z.string().uuid().optional(),

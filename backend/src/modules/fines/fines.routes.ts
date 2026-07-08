@@ -15,7 +15,9 @@ const createSchema = z.object({
   reference: z.string().min(1),
   offenceAt: z.string(),
   vehicleId: z.string().uuid(),
-  type: z.enum(['salik', 'speeding', 'parking', 'other']),
+  // A user-extensible category (see /option-lists/fine.type) — accept any
+  // non-empty slug rather than a fixed enum.
+  type: z.string().min(1).max(60),
   amount: z.number().nonnegative(),
   authority: z.string().optional(),
   emirate: z.string().optional(),

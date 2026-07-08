@@ -34,7 +34,9 @@ export default function Compliance() {
 
   const fields: FieldDef[] = [
     { name: 'entityType', label: 'Applies to', type: 'select', required: true, half: true, options: [{ value: 'vehicle', label: 'Vehicle' }, { value: 'driver', label: 'Driver' }] },
-    { name: 'docType', label: 'Document type', type: 'select', required: true, half: true, optionListKey: 'compliance.docType', options: DOC_TYPES.map((d) => ({ value: d, label: titleCase(d) })) },
+    // docType is a fixed DB-level enum (drives compliance alert windows and the
+    // vehicle-availability blocking-document gate) — not user-extensible.
+    { name: 'docType', label: 'Document type', type: 'select', required: true, half: true, options: DOC_TYPES.map((d) => ({ value: d, label: titleCase(d) })) },
     { name: 'vehicleId', label: 'Vehicle', type: 'select', half: true, options: vehicleOptions, showIf: (v) => v.entityType === 'vehicle' },
     { name: 'driverId', label: 'Driver', type: 'select', half: true, options: driverOptions, showIf: (v) => v.entityType === 'driver' },
     { name: 'reference', label: 'Reference / policy no.', half: true },

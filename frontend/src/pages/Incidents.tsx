@@ -34,7 +34,8 @@ export default function Incidents() {
     { name: 'thirdParty', label: 'Third-party details', half: true },
     { name: 'insuranceVendorId', label: 'Insurance vendor', type: 'select', half: true, options: vendorOptions },
     { name: 'description', label: 'Description', type: 'multiline' },
-    { name: 'claimStatus', label: 'Claim status', type: 'select', half: true, optionListKey: 'incidents.claimStatus', options: CLAIM.map((c) => ({ value: c, label: titleCase(c) })) },
+    // claimStatus is a fixed workflow status (drives claim-status color coding), not user-extensible.
+    { name: 'claimStatus', label: 'Claim status', type: 'select', half: true, options: CLAIM.map((c) => ({ value: c, label: titleCase(c) })) },
     { name: 'claimAmount', label: 'Claim amount (AED)', type: 'number', half: true },
     { name: 'settlementAmount', label: 'Settlement amount (AED)', type: 'number', half: true },
   ];

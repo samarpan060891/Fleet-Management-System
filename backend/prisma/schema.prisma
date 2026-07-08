@@ -56,16 +56,6 @@ enum VehicleStatus {
   disposed
 }
 
-enum VendorType {
-  workshop
-  tyre_supplier
-  insurance
-  fuel_supplier
-  spare_parts
-  lessor
-  other
-}
-
 enum FuelChannel {
   vip_kit
   fuel_buddy
@@ -97,13 +87,6 @@ enum ClaimStatus {
   approved
   rejected
   settled
-}
-
-enum FineType {
-  salik
-  speeding
-  parking
-  other
 }
 
 enum FineStatus {
@@ -310,7 +293,7 @@ model Driver {
 
 model Vendor {
   id            String     @id @default(uuid())
-  type          VendorType
+  type          String     // user-extensible (see OptionListItem "vendor.type")
   name          String
   contactPerson String?    @map("contact_person")
   phone         String?
@@ -655,7 +638,7 @@ model Fine {
   offenceAt      DateTime   @map("offence_at")
   vehicleId      String     @map("vehicle_id")
   vehicle        Vehicle    @relation(fields: [vehicleId], references: [id])
-  type           FineType
+  type           String     // user-extensible (see OptionListItem "fine.type")
   amount         Decimal    @db.Decimal(12, 2)
   authority      String?
   emirate        String?
@@ -869,16 +852,6 @@ model FleetAllocation {
 // dates/aging, and (for permit/insurance/branding categories) feeds the TCO.
 // ---------------------------------------------------------------------------
 
-enum VendorInvoiceCategory {
-  maintenance
-  tyre
-  insurance
-  permit
-  branding
-  salik
-  other
-}
-
 enum InvoiceStatus {
   unpaid
   partial
@@ -891,7 +864,7 @@ model VendorInvoice {
   vendor        Vendor                @relation(fields: [vendorId], references: [id])
   vehicleId     String?               @map("vehicle_id")
   vehicle       Vehicle?              @relation(fields: [vehicleId], references: [id])
-  category      VendorInvoiceCategory
+  category      String                // user-extensible (see OptionListItem "payments.category")
   invoiceNumber String?               @map("invoice_number")
   invoiceDate   DateTime              @map("invoice_date")
   dueDate       DateTime?             @map("due_date")

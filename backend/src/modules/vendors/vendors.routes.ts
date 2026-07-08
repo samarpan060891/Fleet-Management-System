@@ -2,15 +2,9 @@ import { z } from 'zod';
 import { prisma } from '../../lib/prisma';
 import { crudRouter } from '../../lib/crud';
 
-const vendorType = z.enum([
-  'workshop',
-  'tyre_supplier',
-  'insurance',
-  'fuel_supplier',
-  'spare_parts',
-  'lessor',
-  'other',
-]);
+// A user-extensible category (see /option-lists/vendor.type) — accept any
+// non-empty slug rather than a fixed enum.
+const vendorType = z.string().min(1).max(60);
 
 const createSchema = z.object({
   type: vendorType,

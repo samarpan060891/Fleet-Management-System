@@ -92,7 +92,8 @@ export default function Vehicles() {
     { name: 'plateNumber', label: 'Plate number', required: true, half: true },
     { name: 'plateEmirate', label: 'Plate emirate', required: true, half: true },
     { name: 'plateCategory', label: 'Plate category', half: true },
-    { name: 'vehicleType', label: 'Vehicle type', type: 'select', required: true, half: true, optionListKey: 'vehicle.type', options: TYPES.map((t) => ({ value: t, label: titleCase(t) })) },
+    // vehicleType is a fixed DB-level enum (drives per-type PM schedules) — not user-extensible.
+    { name: 'vehicleType', label: 'Vehicle type', type: 'select', required: true, half: true, options: TYPES.map((t) => ({ value: t, label: titleCase(t) })) },
     { name: 'make', label: 'Make', required: true, half: true },
     { name: 'model', label: 'Model', required: true, half: true },
     { name: 'year', label: 'Year', type: 'number', required: true, half: true },
