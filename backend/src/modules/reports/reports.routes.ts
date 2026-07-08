@@ -123,6 +123,68 @@ reportsRouter.get(
   })
 );
 
+// Job cards report (Excel) — full maintenance log with vendor, cost, warranty & parts.
+reportsRouter.get(
+  '/job-cards.xlsx',
+  authorize('reports', 'read'),
+  asyncHandler(async (req, res) => {
+    const where: Record<string, unknown> = { isActive: true };
+    if (req.query.vehicleId) where.vehicleId = req.query.vehicleId;
+    if (req.query.status) where.status = req.query.status;
+    const rows = await prisma.jobCard.findMany({
+      where,
+      orderBy: { dateIn: 'desc' },
+      include: { vehicle: { select: { plateNumber: true, plateEmirate: true } }, vendor: { select: { name: true } }, parts: true },
+    });
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Job Cards');
+    ws.columns = [
+      { header: 'Job #', key: 'jobNumber', width: 20 },
+      { header: 'Vehicle', key: 'vehicle', width: 18 },
+      { header: 'Type', key: 'type', width: 14 },
+      { header: 'Date In', key: 'dateIn', width: 14 },
+      { header: 'Date Out', key: 'dateOut', width: 14 },
+      { header: 'Downtime (days)', key: 'downtime', width: 16 },
+      { header: 'Odometer In', key: 'odoIn', width: 14 },
+      { header: 'Odometer Out', key: 'odoOut', width: 14 },
+      { header: 'Vendor', key: 'vendor', width: 22 },
+      { header: 'Invoice #', key: 'invoice', width: 16 },
+      { header: 'Labour Charges', key: 'labour', width: 16 },
+      { header: 'Other Charges', key: 'other', width: 16 },
+      { header: 'Total Cost', key: 'total', width: 14 },
+      { header: 'Warranty Claim', key: 'warranty', width: 16 },
+      { header: 'Status', key: 'status', width: 12 },
+      { header: 'Description', key: 'description', width: 32 },
+      { header: 'Parts', key: 'parts', width: 40 },
+    ];
+    for (const j of rows) {
+      ws.addRow({
+        jobNumber: j.jobNumber,
+        vehicle: j.vehicle ? `${j.vehicle.plateNumber} (${j.vehicle.plateEmirate})` : '',
+        type: j.type,
+        dateIn: dayjs(j.dateIn).format('DD/MM/YYYY'),
+        dateOut: j.dateOut ? dayjs(j.dateOut).format('DD/MM/YYYY') : '',
+        downtime: j.downtimeDays ?? '',
+        odoIn: j.odometerIn ?? '',
+        odoOut: j.odometerOut ?? '',
+        vendor: j.vendor?.name ?? 'In-house',
+        invoice: j.invoiceNumber ?? '',
+        labour: Number(j.labourCharges ?? 0),
+        other: Number(j.otherCharges ?? 0),
+        total: Number(j.totalCost ?? 0),
+        warranty: j.isWarrantyClaim ? 'Yes' : 'No',
+        status: j.status,
+        description: j.description ?? '',
+        parts: j.parts.map((p) => `${p.partName} ×${p.qty} @ AED ${p.unitCost}`).join('; '),
+      });
+    }
+    ws.getRow(1).font = { bold: true };
+    xlsxHeaders(res, 'job-cards-report.xlsx');
+    await wb.xlsx.write(res);
+    res.end();
+  })
+);
+
 // Vehicle history sheet (PDF) — full life: services, fuel, fines, incidents, costs.
 reportsRouter.get(
   '/vehicle-history/:id.pdf',

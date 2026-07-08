@@ -1,25 +1,60 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
-import { Box, Card, Chip, Tabs, Tab, Button } from '@mui/material';
+import { Box, Card, CardContent, CardActions, Chip, Tabs, Tab, Button, Grid, Stack, Typography, ToggleButtonGroup, ToggleButton } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import DownloadIcon from '@mui/icons-material/Download';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import StraightenIcon from '@mui/icons-material/Straighten';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { api } from '../api/client';
 import { PageHeader, StatusChip } from '../components/ui';
 import FormDialog, { FieldDef } from '../components/FormDialog';
 import ImportDialog from '../components/ImportDialog';
 import { fmtCurrency, fmtDate, fmtKm } from '../i18n';
+import { titleCase } from '../lib/text';
+import { downloadFile } from '../lib/download';
 import { useAuth } from '../auth/AuthContext';
 import { useLookups, apiError } from '../hooks/useLookups';
+
+// Job card — shows the same columns as the list view (job #, vehicle, type,
+// date in, cost, warranty, status) plus the "Close job" action.
+function JobCardCard({ row, onClose, canClose }: { row: any; onClose: () => void; canClose: boolean }) {
+  return (
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <CardContent sx={{ flexGrow: 1 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1.05rem' }}>{row.jobNumber}</Typography>
+          <StatusChip status={row.status} />
+        </Stack>
+        <Typography variant="body2" color="text.secondary">{row.vehicle?.plateNumber ?? '—'}</Typography>
+        <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
+          <Chip size="small" variant="outlined" label={titleCase(row.type)} />
+          {row.isWarrantyClaim && <Chip size="small" color="secondary" label="Possible claim" />}
+        </Stack>
+        <Stack spacing={0.5} sx={{ mt: 1.5 }}>
+          <Typography variant="body2">Date in: {fmtDate(row.dateIn)}</Typography>
+          <Typography variant="body2">Cost: {fmtCurrency(row.totalCost)}</Typography>
+        </Stack>
+      </CardContent>
+      {canClose && (
+        <CardActions sx={{ justifyContent: 'flex-end' }}>
+          <Button size="small" startIcon={<CheckCircleIcon />} onClick={onClose}>Close job</Button>
+        </CardActions>
+      )}
+    </Card>
+  );
+}
 
 export default function Maintenance() {
   const qc = useQueryClient();
   const { can } = useAuth();
   const { vehicleOptions, vendorOptions } = useLookups();
   const [tab, setTab] = useState(0);
+  const [jobView, setJobView] = useState<'list' | 'card'>('list');
   const [addJob, setAddJob] = useState(false);
   const [importJobs, setImportJobs] = useState(false);
   const [closeJob, setCloseJob] = useState<any | null>(null);
@@ -98,10 +133,15 @@ export default function Maintenance() {
       <PageHeader
         title="Maintenance" subtitle="Outsourced job cards, PM schedules and tyres"
         action={tab === 0
-          ? can('maintenance:create') && (
+          ? (
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportJobs(true)}>Import</Button>
-              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddJob(true)}>New job card</Button>
+              <ToggleButtonGroup size="small" value={jobView} exclusive onChange={(_, v) => v && setJobView(v)}>
+                <ToggleButton value="list"><ViewListIcon fontSize="small" /></ToggleButton>
+                <ToggleButton value="card"><ViewModuleIcon fontSize="small" /></ToggleButton>
+              </ToggleButtonGroup>
+              <Button variant="outlined" startIcon={<DownloadIcon />} onClick={() => downloadFile('/reports/job-cards.xlsx', 'job-cards-report.xlsx')}>Export</Button>
+              {can('maintenance:create') && <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportJobs(true)}>Import</Button>}
+              {can('maintenance:create') && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddJob(true)}>New job card</Button>}
             </Box>
           )
           : tab === 2
@@ -114,11 +154,21 @@ export default function Maintenance() {
           : undefined}
       />
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}><Tab label="Job Cards" /><Tab label="PM Due" /><Tab label="Tyres" /></Tabs>
-      <Card>
-        {tab === 0 && <DataGrid autoHeight rows={jobs.data?.data ?? []} columns={jobCols} loading={jobs.isLoading} getRowId={(r) => r.id} initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} pageSizeOptions={[25, 50]} disableRowSelectionOnClick sx={{ border: 0 }} />}
-        {tab === 1 && <DataGrid autoHeight rows={pmDue.data ?? []} columns={pmCols} loading={pmDue.isLoading} getRowId={(r) => r.vehicleId} initialState={{ pagination: { paginationModel: { pageSize: 25 } }, sorting: { sortModel: [{ field: 'daysToNext', sort: 'asc' }] } }} pageSizeOptions={[25, 50]} disableRowSelectionOnClick sx={{ border: 0 }} />}
-        {tab === 2 && <DataGrid autoHeight rows={tyres.data ?? []} columns={tyreCols} loading={tyres.isLoading} getRowId={(r) => r.id} pageSizeOptions={[25, 50]} disableRowSelectionOnClick sx={{ border: 0 }} />}
-      </Card>
+      {tab === 0 && jobView === 'card' ? (
+        <Grid container spacing={2}>
+          {(jobs.data?.data ?? []).map((row: any) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={row.id}>
+              <JobCardCard row={row} canClose={can('maintenance:update') && row.status !== 'closed'} onClose={() => setCloseJob(row)} />
+            </Grid>
+          ))}
+        </Grid>
+      ) : (
+        <Card>
+          {tab === 0 && <DataGrid autoHeight rows={jobs.data?.data ?? []} columns={jobCols} loading={jobs.isLoading} getRowId={(r) => r.id} initialState={{ pagination: { paginationModel: { pageSize: 25 } } }} pageSizeOptions={[25, 50]} disableRowSelectionOnClick sx={{ border: 0 }} />}
+          {tab === 1 && <DataGrid autoHeight rows={pmDue.data ?? []} columns={pmCols} loading={pmDue.isLoading} getRowId={(r) => r.vehicleId} initialState={{ pagination: { paginationModel: { pageSize: 25 } }, sorting: { sortModel: [{ field: 'daysToNext', sort: 'asc' }] } }} pageSizeOptions={[25, 50]} disableRowSelectionOnClick sx={{ border: 0 }} />}
+          {tab === 2 && <DataGrid autoHeight rows={tyres.data ?? []} columns={tyreCols} loading={tyres.isLoading} getRowId={(r) => r.id} pageSizeOptions={[25, 50]} disableRowSelectionOnClick sx={{ border: 0 }} />}
+        </Card>
+      )}
 
       <FormDialog open={addJob} title="New job card" fields={jobFields} submitting={createJob.isPending} error={createJob.error ? apiError(createJob.error) : null} onClose={() => setAddJob(false)} onSubmit={(v) => createJob.mutate(v)} />
       <FormDialog open={!!closeJob} title={`Close ${closeJob?.jobNumber ?? 'job card'}`}
