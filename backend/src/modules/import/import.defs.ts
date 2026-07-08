@@ -56,6 +56,18 @@ async function resolveVendorByName(db: PrismaClient, name: unknown): Promise<str
   if (!v) throw new Error(`Vendor not found with name "${name}"`);
   return v.id;
 }
+async function resolveRouteByCode(db: PrismaClient, code: unknown): Promise<string> {
+  if (!code) throw new Error('routeCode is required');
+  const r = await db.route.findUnique({ where: { code: String(code) } });
+  if (!r) throw new Error(`Route not found for code "${code}"`);
+  return r.id;
+}
+async function resolveEmployeeByStaffId(db: PrismaClient, staffId: unknown): Promise<string> {
+  if (!staffId) throw new Error('staffId is required');
+  const e = await db.employee.findUnique({ where: { staffId: String(staffId) } });
+  if (!e) throw new Error(`Employee not found for staff ID "${staffId}"`);
+  return e.id;
+}
 
 const withAudit = (data: Record<string, unknown>, actorId: string) => ({ ...data, createdBy: actorId, updatedBy: actorId });
 
@@ -399,5 +411,47 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       };
     },
     create: async (data, db, actorId) => (await db.fine.create({ data: withAudit(data, actorId) as Prisma.FineUncheckedCreateInput })).id,
+  },
+
+  'route-roster': {
+    label: 'Route Roster (Pickup Points)',
+    permission: 'transport',
+    columns: [
+      { key: 'routeCode', label: 'Route Code', required: true, example: 'R-A1' },
+      { key: 'staffId', label: 'Employee Staff ID', required: true, example: 'LAB3000' },
+      { key: 'pickupPoint', label: 'Pickup Point', example: 'Camp Gate 1' },
+      { key: 'sequence', label: 'Stop Order', type: 'number', note: 'Employees sharing the same pickup point + order become one stop', example: '1' },
+      { key: 'effectiveFrom', label: 'Effective From', type: 'date', required: true, example: '2026-01-01' },
+    ],
+    build: async (row, db) => {
+      const routeId = await resolveRouteByCode(db, row.routeCode);
+      const employeeId = await resolveEmployeeByStaffId(db, row.staffId);
+      return { routeId, employeeId, pickupPoint: row.pickupPoint, sequence: row.sequence, effectiveFrom: row.effectiveFrom };
+    },
+    // Re-importing the same route/employee pair updates the existing active
+    // mapping in place (pickup point / stop order correction) instead of
+    // creating a duplicate roster entry.
+    create: async (data, db, actorId) => {
+      const routeId = data.routeId as string;
+      const employeeId = data.employeeId as string;
+      const existing = await db.routeEmployee.findFirst({ where: { routeId, employeeId, isActive: true, effectiveTo: null } });
+      if (existing) {
+        const updated = await db.routeEmployee.update({
+          where: { id: existing.id },
+          data: { pickupPoint: data.pickupPoint as string | undefined, sequence: data.sequence as number | undefined },
+        });
+        return updated.id;
+      }
+      const created = await db.routeEmployee.create({
+        data: {
+          routeId, employeeId,
+          pickupPoint: data.pickupPoint as string | undefined,
+          sequence: data.sequence as number | undefined,
+          effectiveFrom: data.effectiveFrom as Date,
+          createdBy: actorId,
+        } as Prisma.RouteEmployeeUncheckedCreateInput,
+      });
+      return created.id;
+    },
   },
 };

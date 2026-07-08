@@ -111,6 +111,31 @@ transportRouter.post(
   })
 );
 
+// Update a mapping's pickup point / stop order in place — a metadata
+// correction, not a re-assignment, so it doesn't version like create/delete.
+transportRouter.patch(
+  '/routes/:routeId/employees/:mapId',
+  authorize('transport', 'update'),
+  validate({
+    params: z.object({ routeId: z.string().uuid(), mapId: z.string().uuid() }),
+    body: z.object({ pickupPoint: z.string().optional(), sequence: z.number().int().min(1).nullable().optional() }),
+  }),
+  asyncHandler(async (req, res) => {
+    const before = await prisma.routeEmployee.findUnique({ where: { id: req.params.mapId } });
+    if (!before || before.routeId !== req.params.routeId) throw NotFound('Mapping not found');
+    const map = await prisma.routeEmployee.update({
+      where: { id: req.params.mapId },
+      data: { pickupPoint: req.body.pickupPoint, sequence: req.body.sequence },
+    });
+    await audit({
+      entity: 'route_employees', entityId: map.id, action: 'update', actor: actorFrom(req),
+      before: { pickupPoint: before.pickupPoint, sequence: before.sequence },
+      after: { pickupPoint: map.pickupPoint, sequence: map.sequence },
+    });
+    res.json(map);
+  })
+);
+
 // Remove employee from route (effective end date).
 transportRouter.delete(
   '/routes/:routeId/employees/:mapId',
