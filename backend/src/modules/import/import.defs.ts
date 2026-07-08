@@ -191,19 +191,39 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       { key: 'vehiclePlate', label: 'Vehicle Plate', required: true, example: 'A-12345' },
       { key: 'vehicleEmirate', label: 'Vehicle Emirate', example: 'Dubai' },
       { key: 'readingDate', label: 'Reading Date', type: 'date', required: true, example: '2026-07-01' },
-      { key: 'odometer', label: 'Odometer (km)', type: 'number', required: true, example: '45200' },
+      { key: 'tripStartKm', label: 'Trip Start Km', type: 'number', required: true, example: '45000' },
+      { key: 'tripEndKm', label: 'Trip End Km', type: 'number', required: true, example: '45200' },
+      { key: 'tripStartTime', label: 'Trip Start Time (HH:mm)', example: '08:00' },
+      { key: 'tripEndTime', label: 'Trip End Time (HH:mm)', example: '17:30' },
       { key: 'note', label: 'Note' },
     ],
     build: async (row, db) => {
       const vehicleId = await resolveVehicle(db, row.vehiclePlate, row.vehicleEmirate);
-      return { vehicleId, readingDate: row.readingDate, odometer: row.odometer, note: row.note };
+      const readingDate = row.readingDate as Date;
+      const combine = (time?: string) => {
+        if (!time) return undefined;
+        const datePart = readingDate.toISOString().slice(0, 10);
+        return new Date(`${datePart}T${time}:00`);
+      };
+      return {
+        vehicleId,
+        readingDate,
+        tripStartKm: row.tripStartKm,
+        tripEndKm: row.tripEndKm,
+        tripStartAt: combine(row.tripStartTime as string | undefined),
+        tripEndAt: combine(row.tripEndTime as string | undefined),
+        note: row.note,
+      };
     },
     // Advances the vehicle's current odometer (which drives PM).
     create: async (data, db, actorId) => {
       const r = await recordReading(db, {
         vehicleId: data.vehicleId as string,
         readingDate: data.readingDate as Date,
-        odometer: data.odometer as number,
+        tripStartKm: data.tripStartKm as number,
+        tripEndKm: data.tripEndKm as number,
+        tripStartAt: data.tripStartAt as Date | undefined,
+        tripEndAt: data.tripEndAt as Date | undefined,
         source: 'excel',
         note: data.note as string | undefined,
         actorId,

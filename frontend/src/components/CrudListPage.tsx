@@ -1,11 +1,13 @@
 import { ReactNode, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
-import { Box, Card, Button } from '@mui/material';
+import { Box, Card, Button, Grid, ToggleButtonGroup, ToggleButton } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import { api } from '../api/client';
 import { PageHeader } from './ui';
 import FormDialog, { FieldDef } from './FormDialog';
@@ -42,6 +44,9 @@ interface Props {
   queryKeyExtra?: string;
   // Client-side filter applied to the fetched rows (e.g. active vs disposed tab).
   filterRows?: (row: any) => boolean;
+  // When set, a list/card view toggle is shown and card view renders each row
+  // via this render prop instead of the DataGrid.
+  renderCard?: (row: any, actions: { onEdit: () => void; onDelete: () => void; onClick?: () => void }) => ReactNode;
 }
 
 // Generic list + Add/Edit/Delete page for standard REST resources.
@@ -50,6 +55,7 @@ export default function CrudListPage(props: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
+  const [view, setView] = useState<'list' | 'card'>('list');
 
   const canCreate = can(`${props.permission}:create`) && !props.hideAdd;
   const canUpdate = can(`${props.permission}:update`);
@@ -100,21 +106,44 @@ export default function CrudListPage(props: Props) {
         action={
           <Box sx={{ display: 'flex', gap: 1 }}>
             {props.extraToolbar}
+            {props.renderCard && (
+              <ToggleButtonGroup size="small" value={view} exclusive onChange={(_, v) => v && setView(v)}>
+                <ToggleButton value="list"><ViewListIcon fontSize="small" /></ToggleButton>
+                <ToggleButton value="card"><ViewModuleIcon fontSize="small" /></ToggleButton>
+              </ToggleButtonGroup>
+            )}
             {props.importable && canCreate && <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportOpen(true)}>Import</Button>}
             {canCreate && <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>Add</Button>}
           </Box>
         }
       />
-      <Card>
-        <DataGrid
-          autoHeight rows={rows} columns={columns} loading={list.isLoading}
-          getRowId={(r) => (props.getId ? props.getId(r) : r.id)}
-          initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-          pageSizeOptions={[25, 50, 100]} disableRowSelectionOnClick
-          onRowClick={props.onRowClick ? (p) => props.onRowClick!(p.row) : undefined}
-          sx={{ border: 0, ...(props.onRowClick ? { '& .MuiDataGrid-row': { cursor: 'pointer' } } : {}) }}
-        />
-      </Card>
+      {props.renderCard && view === 'card' ? (
+        <Grid container spacing={2}>
+          {rows.map((row: any) => {
+            const id = props.getId ? props.getId(row) : row.id;
+            return (
+              <Grid item xs={12} sm={6} md={4} lg={3} key={id}>
+                {props.renderCard!(row, {
+                  onEdit: () => openEdit(row),
+                  onDelete: () => { if (confirm('Delete this record?')) remove.mutate(id); },
+                  onClick: props.onRowClick ? () => props.onRowClick!(row) : undefined,
+                })}
+              </Grid>
+            );
+          })}
+        </Grid>
+      ) : (
+        <Card>
+          <DataGrid
+            autoHeight rows={rows} columns={columns} loading={list.isLoading}
+            getRowId={(r) => (props.getId ? props.getId(r) : r.id)}
+            initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+            pageSizeOptions={[25, 50, 100]} disableRowSelectionOnClick
+            onRowClick={props.onRowClick ? (p) => props.onRowClick!(p.row) : undefined}
+            sx={{ border: 0, ...(props.onRowClick ? { '& .MuiDataGrid-row': { cursor: 'pointer' } } : {}) }}
+          />
+        </Card>
+      )}
       <FormDialog
         open={dialogOpen}
         title={`${editing ? 'Edit' : 'Add'} ${props.title.replace(/s$/, '')}`}

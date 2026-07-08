@@ -38,6 +38,10 @@ const STATUS_COLOR: Record<string, 'success' | 'warning' | 'error' | 'default' |
   unpaid: 'error', paid: 'success', pending: 'warning', approved: 'success', rejected: 'error',
   open: 'warning', in_progress: 'info', closed: 'success',
 };
+const STATUS_LABEL: Record<string, string> = {
+  vor: 'Vehicle Off Road (VOR)',
+};
+
 export function StatusChip({ status }: { status: string }) {
-  return <Chip size="small" color={STATUS_COLOR[status] ?? 'default'} label={status.replace(/_/g, ' ')} variant="outlined" />;
+  return <Chip size="small" color={STATUS_COLOR[status] ?? 'default'} label={STATUS_LABEL[status] ?? status.replace(/_/g, ' ')} variant="outlined" />;
 }

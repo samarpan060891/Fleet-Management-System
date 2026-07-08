@@ -30,18 +30,34 @@ odometerRouter.get(
   })
 );
 
-// Record a single daily reading. Advances current odometer + drives PM.
+// Record a reading, either as a trip (start/end km + start/end time) or a
+// plain odometer value. Advances current odometer + drives PM.
+const createSchema = z
+  .object({
+    vehicleId: z.string().uuid(),
+    readingDate: z.string(),
+    odometer: z.number().int().min(0).optional(),
+    tripStartKm: z.number().int().min(0).optional(),
+    tripEndKm: z.number().int().min(0).optional(),
+    tripStartAt: z.string().optional(), // ISO datetime, or "HH:mm" combined with readingDate
+    tripEndAt: z.string().optional(),
+    note: z.string().optional(),
+  })
+  .refine((b) => b.odometer != null || (b.tripStartKm != null && b.tripEndKm != null), {
+    message: 'Either odometer, or both tripStartKm and tripEndKm, are required',
+  });
+
+// Combine a date-only string with an "HH:mm" time, or pass through a full ISO datetime.
+function toDateTime(readingDate: string, time?: string): Date | undefined {
+  if (!time) return undefined;
+  if (time.includes('T')) return new Date(time);
+  return new Date(`${readingDate.slice(0, 10)}T${time}:00`);
+}
+
 odometerRouter.post(
   '/',
   authorize('odometer', 'create'),
-  validate({
-    body: z.object({
-      vehicleId: z.string().uuid(),
-      readingDate: z.string(),
-      odometer: z.number().int().min(0),
-      note: z.string().optional(),
-    }),
-  }),
+  validate({ body: createSchema }),
   asyncHandler(async (req, res) => {
     // Drivers may only log readings for their own assigned vehicle.
     if (req.user!.role === 'DRIVER') {
@@ -54,6 +70,10 @@ odometerRouter.post(
       vehicleId: req.body.vehicleId,
       readingDate: new Date(req.body.readingDate),
       odometer: req.body.odometer,
+      tripStartKm: req.body.tripStartKm,
+      tripEndKm: req.body.tripEndKm,
+      tripStartAt: toDateTime(req.body.readingDate, req.body.tripStartAt),
+      tripEndAt: toDateTime(req.body.readingDate, req.body.tripEndAt),
       note: req.body.note,
       actorId: req.user!.id,
     });

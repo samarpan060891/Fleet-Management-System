@@ -18,7 +18,7 @@ const ALLOC_LABEL: Record<string, string> = {
   customer_delivery: 'Customer delivery', store_delivery: 'Store delivery', staff_transport: 'Staff pick & drop',
 };
 
-const BUCKET_LABEL: Record<string, string> = { free: 'Free', committed: 'Committed', workshop: 'Workshop / VOR', blocked: 'Compliance-blocked' };
+const BUCKET_LABEL: Record<string, string> = { free: 'Free', committed: 'Committed', workshop: 'Workshop / Vehicle Off Road (VOR)', blocked: 'Compliance-blocked' };
 const BUCKET_COLOR: Record<string, string> = { free: '#2e7d32', committed: '#1565c0', workshop: '#ed9c28', blocked: '#c62828' };
 
 export default function Availability() {
@@ -39,7 +39,7 @@ export default function Availability() {
         <Grid item xs={6} md={2.4}><StatCard label="Total" value={data.kpis.total} /></Grid>
         <Grid item xs={6} md={2.4}><StatCard label="Free" value={data.kpis.free} color="#2e7d32" /></Grid>
         <Grid item xs={6} md={2.4}><StatCard label="Committed" value={data.kpis.committed} color="#1565c0" /></Grid>
-        <Grid item xs={6} md={2.4}><StatCard label="Workshop/VOR" value={data.kpis.workshop} color="#ed9c28" /></Grid>
+        <Grid item xs={6} md={2.4}><StatCard label="Workshop / Vehicle Off Road (VOR)" value={data.kpis.workshop} color="#ed9c28" /></Grid>
         <Grid item xs={6} md={2.4}><StatCard label="Available %" value={`${data.kpis.availablePct}%`} /></Grid>
       </Grid>
 

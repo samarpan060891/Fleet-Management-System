@@ -279,8 +279,8 @@ export async function runAlertEngine(now: Date = new Date()): Promise<AlertRunSu
       severity: 'red',
       dedupeKey: `vor:${v.id}`,
       vehicleId: v.id,
-      title: `Vehicle off-road ${downtime} days — ${subject}`,
-      message: `${subject} has been ${v.status} for ${downtime} days, exceeding the ${vorDays}-day threshold.`,
+      title: `Vehicle Off Road (VOR) ${downtime} days — ${subject}`,
+      message: `${subject} has been ${v.status === 'vor' ? 'Vehicle Off Road (VOR)' : 'in the workshop'} for ${downtime} days, exceeding the ${vorDays}-day threshold.`,
     });
   }
 

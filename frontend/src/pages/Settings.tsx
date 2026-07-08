@@ -11,7 +11,7 @@ const PRETTY: Record<string, string> = {
   lease: 'Lease', warranty: 'Warranty', licence: 'Driving licence', emirates_id: 'Emirates ID',
   visa: 'Visa', passport: 'Passport',
   compliance_expiry: 'Compliance expiry', maintenance_due: 'Maintenance due', fuel_anomaly: 'Fuel anomaly',
-  fine_aging: 'Fine aging', salik_low: 'Low Salik balance', downtime_vor: 'Downtime / VOR',
+  fine_aging: 'Fine aging', salik_low: 'Low Salik balance', downtime_vor: 'Downtime / Vehicle Off Road (VOR)',
   contract_warranty: 'Contract / warranty', transport: 'Staff transport',
 };
 const pretty = (k: string) => PRETTY[k] ?? k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());

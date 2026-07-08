@@ -4,7 +4,7 @@ import { prisma } from '../../lib/prisma';
 import { authorize } from '../../middleware/authorize';
 import { asyncHandler } from '../../middleware/errorHandler';
 import { computeFleetAssets, computeFleetCostPerKm, resolvePeriod } from '../costs/costs.service';
-import { computeCostTrends, computeFleetProfile } from './dashboard.analytics';
+import { computeCalendarYearCostTrends, computeCostTrends, computeFleetProfile } from './dashboard.analytics';
 import { Forbidden } from '../../lib/errors';
 import { utcToday } from '../../lib/dateOnly';
 
@@ -89,6 +89,22 @@ dashboardRouter.get(
   asyncHandler(async (req, res) => {
     const months = Math.min(36, Math.max(6, Number(req.query.months) || 24));
     res.json(await computeCostTrends(months));
+  })
+);
+
+// Fiscal-year-pinned (Jan-Dec) cost trends: current year + previous year, so
+// the monthly trend chart and the year-on-year comparison always align to the
+// calendar/fiscal year rather than a rolling window that could span two years.
+dashboardRouter.get(
+  '/cost-trends-fy',
+  authorize('dashboard', 'read'),
+  asyncHandler(async (req, res) => {
+    const year = Math.max(2000, Number(req.query.year) || new Date().getFullYear());
+    const [current, previous] = await Promise.all([
+      computeCalendarYearCostTrends(year),
+      computeCalendarYearCostTrends(year - 1),
+    ]);
+    res.json({ year, current, previous });
   })
 );
 

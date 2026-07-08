@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
-import { Chip, Tabs, Tab, Box, Alert, Typography } from '@mui/material';
+import { Chip, Tabs, Tab, Box, Alert, Typography, Card, CardContent, CardActions, IconButton, Stack } from '@mui/material';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import SellIcon from '@mui/icons-material/Sell';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import CrudListPage from '../components/CrudListPage';
 import FormDialog, { FieldDef } from '../components/FormDialog';
 import VehicleHistoryDrawer from '../components/VehicleHistoryDrawer';
@@ -11,6 +13,7 @@ import { StatusChip } from '../components/ui';
 import { fmtKm, fmtCurrency, fmtDate } from '../i18n';
 import { useLookups, apiError } from '../hooks/useLookups';
 import { api } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 
 const TYPES = ['light', 'sedan', 'pickup', 'truck_3_7t', 'bus', 'van'];
 const OWNERSHIP = ['owned', 'leased', 'rented'];
@@ -38,8 +41,37 @@ const disposedColumns: GridColDef[] = [
   } },
 ];
 
+function VehicleCard({ row, onEdit, onDelete, onClick, canUpdate, canDelete }: {
+  row: any; onEdit: () => void; onDelete: () => void; onClick?: () => void; canUpdate: boolean; canDelete: boolean;
+}) {
+  return (
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <CardContent sx={{ flexGrow: 1, cursor: onClick ? 'pointer' : undefined }} onClick={onClick}>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>{row.plateNumber}</Typography>
+          <StatusChip status={row.status} />
+        </Stack>
+        <Typography variant="body2" color="text.secondary">{row.plateEmirate} · {String(row.vehicleType).replace(/_/g, ' ')}</Typography>
+        <Typography variant="body2" sx={{ mt: 0.5 }}>{row.make} {row.model} {row.year}</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{fmtKm(row.currentOdometer)}</Typography>
+        <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
+          {row.hasBranding && <Chip size="small" color="secondary" label="Branded" />}
+          <Chip size="small" variant="outlined" label={row.assignments?.[0]?.driver?.fullName ?? '— (free)'} />
+        </Stack>
+      </CardContent>
+      {(canUpdate || canDelete) && (
+        <CardActions sx={{ justifyContent: 'flex-end' }}>
+          {canUpdate && <IconButton size="small" onClick={onEdit}><EditIcon fontSize="small" /></IconButton>}
+          {canDelete && <IconButton size="small" onClick={onDelete}><DeleteIcon fontSize="small" /></IconButton>}
+        </CardActions>
+      )}
+    </Card>
+  );
+}
+
 export default function Vehicles() {
   const qc = useQueryClient();
+  const { can } = useAuth();
   const { storeOptions, vendorOptions } = useLookups();
   const [disposeRow, setDisposeRow] = useState<any | null>(null);
   const [historyId, setHistoryId] = useState<string | null>(null);
@@ -114,6 +146,10 @@ export default function Vehicles() {
           filterRows={(r) => r.status !== 'disposed'}
           onRowClick={(row) => setHistoryId(row.id)}
           toInitial={(r) => ({ ...r, purchaseDate: r.purchase?.purchaseDate, purchasePrice: r.purchase?.purchasePrice })}
+          renderCard={(row, actions) => (
+            <VehicleCard row={row} onEdit={actions.onEdit} onDelete={actions.onDelete} onClick={actions.onClick}
+              canUpdate={can('vehicles:update')} canDelete={can('vehicles:delete')} />
+          )}
           extraActions={(row, refetch) => {
             const items = [];
             if (row.assignments?.length) {

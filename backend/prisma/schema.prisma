@@ -475,6 +475,12 @@ model OdometerReading {
   vehicleId   String   @map("vehicle_id")
   vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
   readingDate DateTime @map("reading_date")
+  // Trip-based capture: start/end odometer + start/end time for the trip.
+  // `odometer` is always the resulting (end) reading that advances the vehicle.
+  tripStartKm Int?     @map("trip_start_km")
+  tripEndKm   Int?     @map("trip_end_km")
+  tripStartAt DateTime? @map("trip_start_at")
+  tripEndAt   DateTime? @map("trip_end_at")
   odometer    Int
   source      String   @default("manual") // manual | excel | fuel | service
   note        String?

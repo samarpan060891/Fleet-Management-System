@@ -31,17 +31,24 @@ export default function Odometer() {
 
   const fields: FieldDef[] = [
     { name: 'vehicleId', label: 'Vehicle', type: 'select', required: true, half: true, options: vehicleOptions },
-    { name: 'readingDate', label: 'Reading date', type: 'date', required: true, half: true },
-    { name: 'odometer', label: 'Odometer (km)', type: 'number', required: true, half: true },
+    { name: 'readingDate', label: 'Trip date', type: 'date', required: true, half: true },
+    { name: 'tripStartKm', label: 'Trip start (km)', type: 'number', required: true, half: true },
+    { name: 'tripEndKm', label: 'Trip end (km)', type: 'number', required: true, half: true },
+    { name: 'tripStartAt', label: 'Trip start time (HH:mm)', half: true },
+    { name: 'tripEndAt', label: 'Trip end time (HH:mm)', half: true },
     { name: 'note', label: 'Note', half: true },
   ];
 
   const columns: GridColDef[] = [
-    { field: 'readingDate', headerName: 'Date', width: 130, valueFormatter: (v) => fmtDate(v as string) },
-    { field: 'vehicle', headerName: 'Vehicle', width: 170, valueGetter: (_v, r) => r.vehicle ? `${r.vehicle.plateNumber} (${r.vehicle.plateEmirate})` : '—' },
-    { field: 'odometer', headerName: 'Odometer', width: 140, valueFormatter: (v) => fmtKm(v as number) },
-    { field: 'source', headerName: 'Source', width: 110, renderCell: (p) => <Chip size="small" variant="outlined" label={p.value as string} /> },
-    { field: 'note', headerName: 'Note', width: 220 },
+    { field: 'readingDate', headerName: 'Date', width: 120, valueFormatter: (v) => fmtDate(v as string) },
+    { field: 'vehicle', headerName: 'Vehicle', width: 160, valueGetter: (_v, r) => r.vehicle ? `${r.vehicle.plateNumber} (${r.vehicle.plateEmirate})` : '—' },
+    { field: 'tripStartKm', headerName: 'Trip start', width: 110, valueFormatter: (v) => (v == null ? '—' : fmtKm(v as number)) },
+    { field: 'tripEndKm', headerName: 'Trip end', width: 110, valueFormatter: (v) => (v == null ? '—' : fmtKm(v as number)) },
+    { field: 'tripStartAt', headerName: 'Start time', width: 100, valueFormatter: (v) => (v ? new Date(v as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—') },
+    { field: 'tripEndAt', headerName: 'End time', width: 100, valueFormatter: (v) => (v ? new Date(v as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—') },
+    { field: 'odometer', headerName: 'Odometer', width: 120, valueFormatter: (v) => fmtKm(v as number) },
+    { field: 'source', headerName: 'Source', width: 100, renderCell: (p) => <Chip size="small" variant="outlined" label={p.value as string} /> },
+    { field: 'note', headerName: 'Note', width: 180 },
   ];
 
   return (
@@ -57,7 +64,7 @@ export default function Odometer() {
         )}
       />
       <Alert severity="info" sx={{ mb: 2 }}>
-        A reading only ever moves the odometer <strong>forward</strong>. Lower/backdated values are still logged but won't reduce the current odometer.
+        Log each trip's start/end km and start/end time. The odometer only ever moves <strong>forward</strong> — lower/backdated trips are still logged but won't reduce the current odometer.
       </Alert>
       <Card>
         <DataGrid autoHeight rows={data?.data ?? []} columns={columns} loading={isLoading} getRowId={(r) => r.id}

@@ -67,7 +67,7 @@ export const SETTING_LABELS: Record<string, string> = {
   'compliance.windows': 'Compliance alert windows (days before expiry)',
   'maintenance.dueKm': 'Maintenance due within (km)',
   'maintenance.dueDays': 'Maintenance due within (days)',
-  'maintenance.vorDays': 'VOR / downtime breach threshold (days)',
+  'maintenance.vorDays': 'Vehicle Off Road (VOR) / downtime breach threshold (days)',
   'fuel.anomalyDeviationPct': 'Fuel efficiency deviation threshold (%)',
   'fuel.cashApprovalThreshold': 'Cash fuel approval threshold (AED)',
   'fuel.rollingWindow': 'Fuel rolling-average window (fills)',

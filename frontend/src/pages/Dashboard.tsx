@@ -95,9 +95,12 @@ function BandChips({ bands, suffix }: { bands: Record<string, number>; suffix: s
   );
 }
 
+const COST_LABEL: Record<'fuel' | 'maintenance' | 'compliance', string> = { fuel: 'Fuel', maintenance: 'Maintenance', compliance: 'Compliance' };
+const COST_COLOR: Record<'fuel' | 'maintenance' | 'compliance', string> = { fuel: '#0f6e6e', maintenance: '#ed9c28', compliance: '#1565c0' };
+
 export default function Dashboard() {
   const { data, isLoading } = useQuery({ queryKey: ['dashboard'], queryFn: async () => (await api.get('/dashboard')).data });
-  const trends = useQuery({ queryKey: ['cost-trends'], queryFn: async () => (await api.get('/dashboard/cost-trends', { params: { months: 24 } })).data });
+  const fyQuery = useQuery({ queryKey: ['cost-trends-fy'], queryFn: async () => (await api.get('/dashboard/cost-trends-fy')).data });
 
   if (isLoading || !data) return <LinearProgress />;
 
@@ -111,16 +114,30 @@ export default function Dashboard() {
   const exp = data.experience;
   const cpk = data.costPerKm;
 
-  const t = (trends.data ?? []) as { month: string; fuel: number; maintenance: number; compliance: number; total: number }[];
-  const cur = t[t.length - 1];
-  const prev = t[t.length - 2];
-  const yearAgo = t[t.length - 13];
-  const trend12 = t.slice(-12).map((x) => ({ ...x, label: monthLabel(x.month) }));
-  const yoy = t.slice(-12).map((x, i) => {
-    const idx = t.length - 12 + i;
-    const p = t[idx - 12];
-    return { label: monthLabel(x.month).slice(0, 3), 'This year': x.total, 'Last year': p ? p.total : 0 };
-  });
+  // Fiscal year = calendar year (Jan-Dec). `current`/`previous` are each
+  // exactly 12 months, Jan through Dec, so trend/YoY charts never straddle
+  // two different fiscal years.
+  type MonthCost = { month: string; fuel: number; maintenance: number; compliance: number; total: number };
+  const fyYear = (fyQuery.data?.year ?? new Date().getFullYear()) as number;
+  const current = (fyQuery.data?.current ?? []) as MonthCost[];
+  const previous = (fyQuery.data?.previous ?? []) as MonthCost[];
+  const now = new Date();
+  const curMonthIdx = fyYear === now.getFullYear() ? now.getMonth() : 11;
+  const curFy = current[curMonthIdx];
+  const prevFyMonth = current[curMonthIdx - 1];
+  const fyTotal = {
+    fuel: current.reduce((s, m) => s + m.fuel, 0),
+    maintenance: current.reduce((s, m) => s + m.maintenance, 0),
+    compliance: current.reduce((s, m) => s + m.compliance, 0),
+  };
+  const prevFyTotal = {
+    fuel: previous.reduce((s, m) => s + m.fuel, 0),
+    maintenance: previous.reduce((s, m) => s + m.maintenance, 0),
+    compliance: previous.reduce((s, m) => s + m.compliance, 0),
+  };
+  const fyMonths = current.map((x) => ({ ...x, label: monthLabel(x.month) }));
+  const fyYoy = (k: 'fuel' | 'maintenance' | 'compliance') =>
+    current.map((x, i) => ({ label: monthLabel(x.month).slice(0, 3), 'This FY': x[k], 'Last FY': previous[i]?.[k] ?? 0 }));
 
   return (
     <Box>
@@ -130,7 +147,7 @@ export default function Dashboard() {
       <Section title="Snapshot">
         <Grid container spacing={2}>
           <Grid item xs={6} md={2.4}><StatCard label="Active vehicles" value={availability.active ?? 0} color="#2e7d32" /></Grid>
-          <Grid item xs={6} md={2.4}><StatCard label="In workshop / VOR" value={(availability.in_workshop ?? 0) + (availability.vor ?? 0)} color="#ed9c28" /></Grid>
+          <Grid item xs={6} md={2.4}><StatCard label="In workshop / Vehicle Off Road (VOR)" value={(availability.in_workshop ?? 0) + (availability.vor ?? 0)} color="#ed9c28" /></Grid>
           <Grid item xs={6} md={2.4}><StatCard label="Compliance due (30d)" value={data.complianceExpiring30d} color="#c62828" /></Grid>
           <Grid item xs={6} md={2.4}><StatCard label="MTD cost" value={fmtCurrency(data.mtdCost)} sub="fuel + maintenance + fines" /></Grid>
           <Grid item xs={12} md={2.4}>
@@ -165,7 +182,7 @@ export default function Dashboard() {
       {/* ---------- Fleet Profile ---------- */}
       <Section title="Fleet Profile" subtitle="Age of vehicles and experience of drivers operating the fleet">
         <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={4}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
                 <Typography variant="subtitle1" fontWeight={600} gutterBottom>Fleet age</Typography>
@@ -179,14 +196,13 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={4}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
-                <Typography variant="subtitle1" fontWeight={600} gutterBottom>Fleet experience</Typography>
-                <Stack direction="row" spacing={4} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>Driver experience</Typography>
+                <Stack direction="row" spacing={4} sx={{ mb: 2 }}>
                   <StatPair value={exp.avgDriverTenureYears} label="avg driver tenure (yrs)" />
-                  <StatPair value={`${(exp.avgVehicleOdometer / 1000).toFixed(0)}k`} label="avg vehicle km" />
-                  <StatPair value={`${(exp.avgKmPerYear / 1000).toFixed(1)}k`} label="avg km / year" />
+                  <StatPair value={exp.driverCount} label="active drivers" />
                 </Stack>
                 <Divider sx={{ mb: 1.5 }} />
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>Driver tenure distribution</Typography>
@@ -194,55 +210,67 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </Grid>
+          <Grid item xs={12} md={4}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>Vehicle usage</Typography>
+                <Stack direction="row" spacing={4} sx={{ mb: 2 }}>
+                  <StatPair value={`${(exp.avgVehicleOdometer / 1000).toFixed(0)}k`} label="avg vehicle km" />
+                  <StatPair value={`${(exp.avgKmPerYear / 1000).toFixed(1)}k`} label="avg km / year" />
+                </Stack>
+                <Divider sx={{ mb: 1.5 }} />
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Across {age.vehicleCount} active vehicles</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
       </Section>
 
       {/* ---------- Cost Trends ---------- */}
-      <Section title="Cost Trends">
-        {cur && (
+      <Section title="Cost Trends" subtitle={`Financial year ${fyYear}: January – December`}>
+        {curFy && (
           <Grid container spacing={2} sx={{ mb: 2 }}>
-            <Grid item xs={12} md={4}><CostCard label="Fuel cost" value={cur.fuel} dMonth={pct(cur.fuel, prev?.fuel)} dYear={pct(cur.fuel, yearAgo?.fuel)} /></Grid>
-            <Grid item xs={12} md={4}><CostCard label="Maintenance cost" value={cur.maintenance} dMonth={pct(cur.maintenance, prev?.maintenance)} dYear={pct(cur.maintenance, yearAgo?.maintenance)} /></Grid>
-            <Grid item xs={12} md={4}><CostCard label="Compliance cost" value={cur.compliance} dMonth={pct(cur.compliance, prev?.compliance)} dYear={pct(cur.compliance, yearAgo?.compliance)} /></Grid>
+            <Grid item xs={12} md={4}><CostCard label="Fuel cost" value={curFy.fuel} dMonth={pct(curFy.fuel, prevFyMonth?.fuel)} dYear={pct(fyTotal.fuel, prevFyTotal.fuel)} /></Grid>
+            <Grid item xs={12} md={4}><CostCard label="Maintenance cost" value={curFy.maintenance} dMonth={pct(curFy.maintenance, prevFyMonth?.maintenance)} dYear={pct(fyTotal.maintenance, prevFyTotal.maintenance)} /></Grid>
+            <Grid item xs={12} md={4}><CostCard label="Compliance cost" value={curFy.compliance} dMonth={pct(curFy.compliance, prevFyMonth?.compliance)} dYear={pct(fyTotal.compliance, prevFyTotal.compliance)} /></Grid>
           </Grid>
         )}
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={7}>
-            <Card sx={{ height: '100%' }}>
-              <CardContent>
-                <Typography variant="subtitle1" fontWeight={600} gutterBottom>Monthly cost trend (12 months)</Typography>
-                <ResponsiveContainer width="100%" height={260}>
-                  <LineChart data={trend12}>
-                    <XAxis dataKey="label" fontSize={11} />
-                    <YAxis fontSize={11} />
-                    <Tooltip formatter={(v: number) => fmtCurrency(v)} />
-                    <Legend />
-                    <Line type="monotone" dataKey="fuel" stroke="#0f6e6e" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="maintenance" stroke="#ed9c28" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="compliance" stroke="#1565c0" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+        {(['fuel', 'maintenance', 'compliance'] as const).map((k) => (
+          <Grid container spacing={2} key={k} sx={{ mb: 2 }}>
+            <Grid item xs={12} md={7}>
+              <Card sx={{ height: '100%' }}>
+                <CardContent>
+                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>{COST_LABEL[k]} trend (FY {fyYear})</Typography>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={fyMonths}>
+                      <XAxis dataKey="label" fontSize={11} />
+                      <YAxis fontSize={11} />
+                      <Tooltip formatter={(v: number) => fmtCurrency(v)} />
+                      <Line type="monotone" dataKey={k} name={COST_LABEL[k]} stroke={COST_COLOR[k]} strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={5}>
+              <Card sx={{ height: '100%' }}>
+                <CardContent>
+                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>{COST_LABEL[k]} year-on-year</Typography>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={fyYoy(k)}>
+                      <XAxis dataKey="label" fontSize={11} />
+                      <YAxis fontSize={11} />
+                      <Tooltip formatter={(v: number) => fmtCurrency(v)} />
+                      <Legend />
+                      <Bar dataKey="Last FY" fill="#b0bec5" radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="This FY" fill={COST_COLOR[k]} radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
-          <Grid item xs={12} md={5}>
-            <Card sx={{ height: '100%' }}>
-              <CardContent>
-                <Typography variant="subtitle1" fontWeight={600} gutterBottom>Year-on-year (total cost)</Typography>
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={yoy}>
-                    <XAxis dataKey="label" fontSize={11} />
-                    <YAxis fontSize={11} />
-                    <Tooltip formatter={(v: number) => fmtCurrency(v)} />
-                    <Legend />
-                    <Bar dataKey="Last year" fill="#b0bec5" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="This year" fill="#0f6e6e" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+        ))}
       </Section>
 
       {/* ---------- Operations ---------- */}

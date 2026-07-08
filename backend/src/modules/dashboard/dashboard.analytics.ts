@@ -101,3 +101,42 @@ export async function computeCostTrends(months = 24): Promise<MonthCost[]> {
     total: +b.total.toFixed(2),
   }));
 }
+
+// Fiscal year here is the calendar year (Jan-Dec). Returns exactly 12 months,
+// Jan through Dec, for the given year — used so YTD/trend charts always align
+// to Jan-Dec rather than a rolling window that could straddle two years.
+export async function computeCalendarYearCostTrends(year: number): Promise<MonthCost[]> {
+  const yearStart = dayjs(`${year}-01-01`).startOf('year');
+  const yearEnd = yearStart.endOf('year');
+
+  const [fuel, jobs, docs] = await Promise.all([
+    prisma.fuelTransaction.findMany({
+      where: { isActive: true, filledAt: { gte: yearStart.toDate(), lte: yearEnd.toDate() }, OR: [{ approvalStatus: null }, { approvalStatus: 'approved' }] },
+      select: { filledAt: true, amount: true },
+    }),
+    prisma.jobCard.findMany({ where: { isActive: true, dateIn: { gte: yearStart.toDate(), lte: yearEnd.toDate() } }, select: { dateIn: true, totalCost: true } }),
+    prisma.complianceDocument.findMany({ where: { isActive: true, cost: { not: null }, issueDate: { gte: yearStart.toDate(), lte: yearEnd.toDate() } }, select: { issueDate: true, cost: true } }),
+  ]);
+
+  const buckets = new Map<string, MonthCost>();
+  for (let m = 0; m < 12; m++) {
+    const key = yearStart.add(m, 'month').format('YYYY-MM');
+    buckets.set(key, { month: key, fuel: 0, maintenance: 0, compliance: 0, total: 0 });
+  }
+  const add = (date: Date, field: 'fuel' | 'maintenance' | 'compliance', amount: number) => {
+    const key = dayjs(date).format('YYYY-MM');
+    const b = buckets.get(key);
+    if (b) { b[field] += amount; b.total += amount; }
+  };
+  for (const f of fuel) add(f.filledAt, 'fuel', Number(f.amount));
+  for (const j of jobs) add(j.dateIn, 'maintenance', Number(j.totalCost ?? 0));
+  for (const d of docs) add(d.issueDate!, 'compliance', Number(d.cost ?? 0));
+
+  return [...buckets.values()].map((b) => ({
+    month: b.month,
+    fuel: +b.fuel.toFixed(2),
+    maintenance: +b.maintenance.toFixed(2),
+    compliance: +b.compliance.toFixed(2),
+    total: +b.total.toFixed(2),
+  }));
+}
