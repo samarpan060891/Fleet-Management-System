@@ -65,13 +65,15 @@ export default function CrudListPage(props: Props) {
   };
 
   const actionCol: GridColDef = {
-    field: '__actions', type: 'actions', headerName: '', width: 90,
+    field: '__actions', type: 'actions', headerName: 'Actions', width: 110,
     getActions: (p) => {
       const items = [];
-      if (canUpdate) items.push(<GridActionsCellItem key="e" icon={<EditIcon />} label="Edit" onClick={() => openEdit(p.row)} />);
+      // Edit stays a one-click icon button (most frequent action).
+      if (canUpdate) items.push(<GridActionsCellItem key="e" icon={<EditIcon fontSize="small" />} label="Edit" showInMenu={false} onClick={() => openEdit(p.row)} />);
+      // Less-common / destructive actions live behind the "more" (⋮) menu.
       if (props.extraActions) items.push(...props.extraActions(p.row, () => list.refetch()));
       if (canDelete) items.push(
-        <GridActionsCellItem key="d" icon={<DeleteIcon />} label="Delete" showInMenu
+        <GridActionsCellItem key="d" icon={<DeleteIcon fontSize="small" />} label="Delete" showInMenu
           onClick={() => { if (confirm('Delete this record?')) remove.mutate(props.getId ? props.getId(p.row) : p.row.id); }} />
       );
       return items;
