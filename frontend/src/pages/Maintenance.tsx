@@ -38,7 +38,13 @@ function JobCardCard({ row, onClose, canClose }: { row: any; onClose: () => void
         <Stack spacing={0.5} sx={{ mt: 1.5 }}>
           <Typography variant="body2">Date in: {fmtDate(row.dateIn)}</Typography>
           <Typography variant="body2">Cost: {fmtCurrency(row.totalCost)}</Typography>
+          <Typography variant="body2">Vendor: {row.vendor?.name ?? 'In-house'}</Typography>
         </Stack>
+        {row.description && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, whiteSpace: 'pre-wrap' }}>
+            <strong>Issue:</strong> {row.description}
+          </Typography>
+        )}
       </CardContent>
       {canClose && (
         <CardActions sx={{ justifyContent: 'flex-end' }}>
@@ -106,6 +112,9 @@ export default function Maintenance() {
     { field: 'totalCost', headerName: 'Cost', width: 110, valueFormatter: (v) => fmtCurrency(v as number) },
     { field: 'isWarrantyClaim', headerName: 'Warranty', width: 120, renderCell: (p) => p.value ? <Chip size="small" color="secondary" label="Possible claim" /> : '—' },
     { field: 'status', headerName: 'Status', width: 120, renderCell: (p) => <StatusChip status={p.value as string} /> },
+    { field: 'description', headerName: 'Issue', width: 220, renderCell: (p) => (
+      <span title={p.value as string ?? ''} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(p.value as string) || '—'}</span>
+    ) },
     { field: '__a', type: 'actions', headerName: '', width: 60, getActions: (p) => (can('maintenance:update') && p.row.status !== 'closed')
       ? [<GridActionsCellItem key="c" icon={<CheckCircleIcon />} label="Close job" onClick={() => setCloseJob(p.row)} />] : [] },
   ];
