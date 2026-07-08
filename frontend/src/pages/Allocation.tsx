@@ -96,7 +96,7 @@ export default function Allocation() {
     { field: 'duration', headerName: 'Duration', width: 100, valueGetter: (_v, r) => tripDuration(r) },
     { field: 'waitingMinutes', headerName: 'Waiting', width: 90, valueGetter: (_v, r) => (r.waitingMinutes != null ? `${r.waitingMinutes}m` : '—') },
     { field: 'status', headerName: 'Status', width: 110, renderCell: (p) => <Chip size="small" color={STATUS_COLOR[p.value as string]} label={p.value as string} /> },
-    { field: '__a', type: 'actions', headerName: '', width: 60, getActions: (p) => {
+    { field: '__a', type: 'actions', headerName: 'Actions', width: 90, getActions: (p) => {
       if (!can('allocations:update')) return [];
       const items = [];
       if (p.row.status === 'planned') items.push(<GridActionsCellItem key="s" icon={<PlayArrowIcon />} label="Start trip" onClick={() => setStatus.mutate({ id: p.row.id, status: 'active' })} />);

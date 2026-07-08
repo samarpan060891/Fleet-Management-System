@@ -59,7 +59,7 @@ export default function Fines() {
     { field: 'type', headerName: 'Type', width: 100, valueFormatter: (v) => titleCase(v as string) },
     { field: 'amount', headerName: 'Amount', width: 110, valueFormatter: (v) => fmtCurrency(v as number) },
     { field: 'status', headerName: 'Status', width: 90, renderCell: (p) => <StatusChip status={p.value as string} /> },
-    { field: '__a', type: 'actions', headerName: '', width: 60, getActions: (p) => can('fines:update') ? [
+    { field: '__a', type: 'actions', headerName: 'Actions', width: 90, getActions: (p) => can('fines:update') ? [
       ...(p.row.status === 'unpaid' ? [<GridActionsCellItem key="p" icon={<PaidIcon />} label="Mark paid" onClick={() => pay.mutate(p.row.id)} />] : []),
       <GridActionsCellItem key="r" icon={<SwapHorizIcon />} label="Reassign driver" showInMenu onClick={() => setReassign(p.row)} />,
     ] : [] },

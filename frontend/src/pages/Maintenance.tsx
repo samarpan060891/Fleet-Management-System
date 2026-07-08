@@ -115,7 +115,7 @@ export default function Maintenance() {
     { field: 'description', headerName: 'Issue', width: 220, renderCell: (p) => (
       <span title={p.value as string ?? ''} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(p.value as string) || '—'}</span>
     ) },
-    { field: '__a', type: 'actions', headerName: '', width: 60, getActions: (p) => (can('maintenance:update') && p.row.status !== 'closed')
+    { field: '__a', type: 'actions', headerName: 'Actions', width: 90, getActions: (p) => (can('maintenance:update') && p.row.status !== 'closed')
       ? [<GridActionsCellItem key="c" icon={<CheckCircleIcon />} label="Close job" onClick={() => setCloseJob(p.row)} />] : [] },
   ];
   const pmCols: GridColDef[] = [
@@ -131,7 +131,7 @@ export default function Maintenance() {
     { field: 'position', headerName: 'Position', width: 100 },
     { field: 'treadDepthMm', headerName: 'Tread (mm)', width: 110, renderCell: (p) => <Chip size="small" color={Number(p.value) < 1.6 ? 'error' : 'default'} variant="outlined" label={p.value ?? '—'} /> },
     { field: 'cost', headerName: 'Cost', width: 110, valueFormatter: (v) => fmtCurrency(v as number) },
-    { field: '__a', type: 'actions', headerName: '', width: 70, getActions: (p) => can('tyres:update') ? [
+    { field: '__a', type: 'actions', headerName: 'Actions', width: 90, getActions: (p) => can('tyres:update') ? [
       <GridActionsCellItem key="t" icon={<StraightenIcon />} label="Tread check" onClick={() => setTreadTyre(p.row)} />,
       <GridActionsCellItem key="s" icon={<DeleteSweepIcon />} label="Scrap" showInMenu onClick={() => setScrapTyre(p.row)} />,
     ] : [] },

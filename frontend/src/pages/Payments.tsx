@@ -54,7 +54,7 @@ export default function Payments() {
       return <Chip size="small" color={d > 30 ? 'error' : 'warning'} label={`${d}d`} />;
     } },
     { field: 'status', headerName: 'Status', width: 100, renderCell: (p) => <Chip size="small" color={STATUS_COLOR[p.value as string]} label={p.value as string} /> },
-    { field: '__a', type: 'actions', headerName: '', width: 60, getActions: (p) => (can('payments:update') && p.row.status !== 'paid')
+    { field: '__a', type: 'actions', headerName: 'Actions', width: 90, getActions: (p) => (can('payments:update') && p.row.status !== 'paid')
       ? [<GridActionsCellItem key="pay" icon={<PaymentsIcon />} label="Record payment" onClick={() => setPayRow(p.row)} />] : [] },
   ];
 
