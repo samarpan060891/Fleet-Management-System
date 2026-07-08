@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import dayjs from 'dayjs';
 import { prisma } from '../../lib/prisma';
 import { authorize } from '../../middleware/authorize';
 import { validate } from '../../middleware/validate';
@@ -8,6 +7,7 @@ import { asyncHandler } from '../../middleware/errorHandler';
 import { audit } from '../../lib/audit';
 import { actorFrom, paged, paging } from '../../lib/http';
 import { NotFound } from '../../lib/errors';
+import { utcDateOnly, utcToday } from '../../lib/dateOnly';
 
 export const allocationsRouter = Router();
 
@@ -56,8 +56,7 @@ allocationsRouter.get(
     if (req.query.status) where.status = req.query.status;
     if (req.query.vehicleId) where.vehicleId = req.query.vehicleId;
     if (req.query.date) {
-      const d = dayjs(req.query.date as string).startOf('day').toDate();
-      where.date = d;
+      where.date = utcDateOnly(req.query.date as string);
     }
     const [rows, total] = await Promise.all([
       prisma.fleetAllocation.findMany({ where, skip, take, orderBy: [{ date: 'desc' }, { createdAt: 'desc' }], include: includeRefs }),
@@ -72,7 +71,7 @@ allocationsRouter.get(
   '/summary',
   authorize('allocations', 'read'),
   asyncHandler(async (req, res) => {
-    const date = dayjs((req.query.date as string) || undefined).startOf('day').toDate();
+    const date = req.query.date ? utcDateOnly(req.query.date as string) : utcToday();
     const byType = await prisma.fleetAllocation.groupBy({ by: ['type'], where: { isActive: true, date }, _count: true });
     const byStatus = await prisma.fleetAllocation.groupBy({ by: ['status'], where: { isActive: true, date }, _count: true });
     res.json({ date, byType, byStatus });
@@ -85,7 +84,7 @@ allocationsRouter.post(
   validate({ body: createSchema }),
   asyncHandler(async (req, res) => {
     const allocation = await prisma.fleetAllocation.create({
-      data: { ...coerceTrips(req.body), date: dayjs(req.body.date).startOf('day').toDate(), createdBy: req.user!.id, updatedBy: req.user!.id } as any,
+      data: { ...coerceTrips(req.body), date: utcDateOnly(req.body.date), createdBy: req.user!.id, updatedBy: req.user!.id } as any,
       include: includeRefs,
     });
     await audit({ entity: 'fleet_allocations', entityId: allocation.id, action: 'create', actor: actorFrom(req), after: allocation });
@@ -101,7 +100,7 @@ allocationsRouter.patch(
     const before = await prisma.fleetAllocation.findUnique({ where: { id: req.params.id } });
     if (!before) throw NotFound('Allocation not found');
     const data: any = { ...coerceTrips(req.body), updatedBy: req.user!.id };
-    if (req.body.date) data.date = dayjs(req.body.date).startOf('day').toDate();
+    if (req.body.date) data.date = utcDateOnly(req.body.date);
     const allocation = await prisma.fleetAllocation.update({ where: { id: req.params.id }, data, include: includeRefs });
     await audit({ entity: 'fleet_allocations', entityId: allocation.id, action: 'update', actor: actorFrom(req), before, after: allocation });
     res.json(allocation);

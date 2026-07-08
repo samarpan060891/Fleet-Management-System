@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import dayjs from 'dayjs';
 import { DocType } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { authorize } from '../../middleware/authorize';
 import { asyncHandler } from '../../middleware/errorHandler';
+import { utcToday } from '../../lib/dateOnly';
 
 export const availabilityRouter = Router();
 
@@ -17,7 +17,7 @@ availabilityRouter.get(
   authorize('availability', 'read'),
   asyncHandler(async (req, res) => {
     const now = new Date();
-    const today = dayjs().startOf('day').toDate();
+    const today = utcToday();
     const vehicles = await prisma.vehicle.findMany({
       where: { isActive: true, status: { not: 'disposed' } },
       include: {

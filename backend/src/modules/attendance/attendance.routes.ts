@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import dayjs from 'dayjs';
 import { prisma } from '../../lib/prisma';
 import { authorize } from '../../middleware/authorize';
 import { validate } from '../../middleware/validate';
@@ -8,6 +7,7 @@ import { asyncHandler } from '../../middleware/errorHandler';
 import { audit } from '../../lib/audit';
 import { actorFrom } from '../../lib/http';
 import { Forbidden } from '../../lib/errors';
+import { utcDateOnly, utcToday } from '../../lib/dateOnly';
 
 export const attendanceRouter = Router();
 
@@ -28,9 +28,9 @@ attendanceRouter.get(
   validate({ query: z.object({ routeId: z.string().uuid(), date: z.string() }).partial() as never }),
   asyncHandler(async (req, res) => {
     const routeId = req.query.routeId as string;
-    const date = req.query.date ? dayjs(req.query.date as string) : dayjs();
+    const date = req.query.date ? utcDateOnly(req.query.date as string) : utcToday();
     const rows = await prisma.attendance.findMany({
-      where: { routeId, date: date.startOf('day').toDate() },
+      where: { routeId, date },
       include: { employee: { select: { name: true, staffId: true } } },
     });
     res.json(rows);
@@ -56,7 +56,7 @@ attendanceRouter.post(
       const ok = await driverOwnsRoute(req.user!.driverId ?? '', req.body.routeId);
       if (!ok) throw Forbidden('You can only mark attendance for your own route');
     }
-    const date = dayjs(req.body.date).startOf('day').toDate();
+    const date = utcDateOnly(req.body.date);
     const results: unknown[] = [];
 
     for (const m of req.body.marks) {

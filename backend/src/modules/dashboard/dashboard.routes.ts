@@ -6,6 +6,7 @@ import { asyncHandler } from '../../middleware/errorHandler';
 import { computeFleetAssets, resolvePeriod } from '../costs/costs.service';
 import { computeCostTrends, computeFleetProfile } from './dashboard.analytics';
 import { Forbidden } from '../../lib/errors';
+import { utcToday } from '../../lib/dateOnly';
 
 export const dashboardRouter = Router();
 
@@ -35,7 +36,7 @@ dashboardRouter.get(
       Number(fuelMtd._sum.amount ?? 0) + Number(maintMtd._sum.totalCost ?? 0) + Number(finesMtd._sum.amount ?? 0);
 
     // --- Today's allocations + utilization ---
-    const todayStart = dayjs(now).startOf('day').toDate();
+    const todayStart = utcToday();
     const [allocByType, activeVehicles, activeDrivers, allocatedVehicles, allocatedDrivers, assets, payablesOpen] = await Promise.all([
       prisma.fleetAllocation.groupBy({ by: ['type'], where: { isActive: true, date: todayStart, status: { in: ['planned', 'active', 'completed'] } }, _count: true }),
       prisma.vehicle.count({ where: { isActive: true, status: { in: ['active', 'idle'] } } }),
@@ -111,7 +112,7 @@ dashboardRouter.get(
         })
       : [];
 
-    const today = dayjs().startOf('day').toDate();
+    const today = utcToday();
     const attendance = await prisma.attendance.findMany({
       where: { routeId: { in: routes.map((r) => r.id) }, date: today },
     });

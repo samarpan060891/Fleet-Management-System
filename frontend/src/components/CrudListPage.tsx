@@ -28,12 +28,20 @@ interface Props {
   extraToolbar?: ReactNode;
   pageSize?: number;
   hideDelete?: boolean;          // for resources without a delete endpoint
+  hideAdd?: boolean;             // for read-only-ish views (e.g. disposed vehicles)
   importable?: boolean;          // show a bulk-import (Excel) button
   // Extra per-row actions (e.g. release a committed vehicle). Receives the row
   // and a refetch callback.
   extraActions?: (row: any, refetch: () => void) => JSX.Element[];
   // Open a detail view when a row is clicked (e.g. vehicle history slider).
   onRowClick?: (row: any) => void;
+  // Extra query params sent with the list fetch (e.g. { status: 'disposed' }).
+  // Include a distinguishing value in queryKey via queryKeyExtra so switching
+  // filters triggers a refetch.
+  queryParams?: Record<string, unknown>;
+  queryKeyExtra?: string;
+  // Client-side filter applied to the fetched rows (e.g. active vs disposed tab).
+  filterRows?: (row: any) => boolean;
 }
 
 // Generic list + Add/Edit/Delete page for standard REST resources.
@@ -43,13 +51,13 @@ export default function CrudListPage(props: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
 
-  const canCreate = can(`${props.permission}:create`);
+  const canCreate = can(`${props.permission}:create`) && !props.hideAdd;
   const canUpdate = can(`${props.permission}:update`);
   const canDelete = can(`${props.permission}:delete`) && !props.hideDelete;
 
   const list = useQuery({
-    queryKey: [props.queryKey],
-    queryFn: async () => (await api.get(`/${props.resource}`, { params: { pageSize: props.pageSize ?? 200 } })).data,
+    queryKey: [props.queryKey, props.queryKeyExtra],
+    queryFn: async () => (await api.get(`/${props.resource}`, { params: { pageSize: props.pageSize ?? 200, ...props.queryParams } })).data,
   });
   const { create, update, remove } = useCrud(props.resource, [props.queryKey]);
 
@@ -81,7 +89,8 @@ export default function CrudListPage(props: Props) {
   };
 
   const columns = (canUpdate || canDelete || props.extraActions) ? [...props.columns, actionCol] : props.columns;
-  const rows = list.data?.data ?? list.data ?? [];
+  const allRows = list.data?.data ?? list.data ?? [];
+  const rows = props.filterRows ? allRows.filter(props.filterRows) : allRows;
 
   return (
     <Box>

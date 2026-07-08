@@ -9,6 +9,7 @@ import { actorFrom, paged, paging } from '../../lib/http';
 import { BadRequest, NotFound } from '../../lib/errors';
 import { assertOdometerNotDecreasing } from './odometer';
 import { releaseVehicle } from '../assignments/assignments.service';
+import { utcDateOnly } from '../../lib/dateOnly';
 
 export const vehiclesRouter = Router();
 
@@ -114,6 +115,7 @@ vehiclesRouter.get(
           purchase: { select: { purchaseDate: true, purchasePrice: true } },
           // Current (open) driver assignment → shows commitment + enables release.
           assignments: { where: { effectiveTo: null }, take: 1, include: { driver: { select: { id: true, fullName: true } } } },
+          disposal: { select: { disposalDate: true, method: true, buyer: true, salePrice: true, gainLoss: true } },
         },
       }),
       prisma.vehicle.count({ where }),
@@ -330,24 +332,35 @@ vehiclesRouter.post(
     }),
   }),
   asyncHandler(async (req, res) => {
+    const before = await prisma.vehicle.findUnique({ where: { id: req.params.id } });
+    if (!before) throw NotFound('Vehicle not found');
     const gainLoss =
       req.body.salePrice != null && req.body.bookValue != null
         ? req.body.salePrice - req.body.bookValue
         : undefined;
+    const disposalDate = new Date(req.body.disposalDate);
+    const disposalDateOnly = utcDateOnly(req.body.disposalDate); // for comparing against @db.Date allocation dates
     const result = await prisma.$transaction(async (tx) => {
       const disposal = await tx.vehicleDisposal.upsert({
         where: { vehicleId: req.params.id },
         create: {
           vehicleId: req.params.id,
           ...req.body,
-          disposalDate: new Date(req.body.disposalDate),
+          disposalDate,
           gainLoss,
           createdBy: req.user!.id,
         },
-        update: { ...req.body, disposalDate: new Date(req.body.disposalDate), gainLoss },
+        update: { ...req.body, disposalDate, gainLoss },
       });
       // Moving to disposed removes it from active availability while keeping history.
       await tx.vehicle.update({ where: { id: req.params.id }, data: { status: 'disposed', updatedBy: req.user!.id } });
+      // Release any open driver assignment — a disposed vehicle can't stay "committed."
+      await releaseVehicle(tx, req.params.id, disposalDate);
+      // Cancel any planned/active allocations against this vehicle from the disposal date on.
+      await tx.fleetAllocation.updateMany({
+        where: { vehicleId: req.params.id, isActive: true, status: { in: ['planned', 'active'] }, date: { gte: disposalDateOnly } },
+        data: { status: 'cancelled', updatedBy: req.user!.id },
+      });
       return disposal;
     });
     await audit({ entity: 'vehicle_disposals', entityId: result.id, action: 'create', actor: actorFrom(req), after: result });

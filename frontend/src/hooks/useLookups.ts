@@ -32,7 +32,11 @@ export function useLookups() {
     staleTime: 60000,
   });
 
-  const vehicleOptions: Option[] = (vehicles.data ?? []).map((v: any) => ({ value: v.id, label: `${v.plateNumber} (${v.plateEmirate})` }));
+  // Disposed vehicles are excluded from pickers — they shouldn't receive new
+  // activity (allocations, fuel, job cards, fines, incidents, compliance docs).
+  const vehicleOptions: Option[] = (vehicles.data ?? [])
+    .filter((v: any) => v.status !== 'disposed')
+    .map((v: any) => ({ value: v.id, label: `${v.plateNumber} (${v.plateEmirate})` }));
   const driverOptions: Option[] = (drivers.data ?? []).map((d: any) => ({ value: d.id, label: `${d.fullName} · ${d.staffId}` }));
   const vendorOptions: Option[] = (vendors.data ?? []).map((v: any) => ({ value: v.id, label: `${v.name} (${v.type})` }));
   const storeOptions: Option[] = (stores.data ?? []).map((s: any) => ({ value: s.id, label: `${s.code} · ${s.name}` }));

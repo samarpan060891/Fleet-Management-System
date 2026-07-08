@@ -1,22 +1,21 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
-import { Chip } from '@mui/material';
+import { Chip, Tabs, Tab, Box, Alert, Typography } from '@mui/material';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import SellIcon from '@mui/icons-material/Sell';
 import CrudListPage from '../components/CrudListPage';
 import FormDialog, { FieldDef } from '../components/FormDialog';
 import VehicleHistoryDrawer from '../components/VehicleHistoryDrawer';
 import { StatusChip } from '../components/ui';
-import { fmtKm, fmtCurrency } from '../i18n';
+import { fmtKm, fmtCurrency, fmtDate } from '../i18n';
 import { useLookups, apiError } from '../hooks/useLookups';
-import { useMutation } from '@tanstack/react-query';
 import { api } from '../api/client';
 
 const TYPES = ['light', 'sedan', 'pickup', 'truck_3_7t', 'bus', 'van'];
 const OWNERSHIP = ['owned', 'leased', 'rented'];
 
-const columns: GridColDef[] = [
+const activeColumns: GridColDef[] = [
   { field: 'plateNumber', headerName: 'Plate', width: 130, valueGetter: (_v, r) => `${r.plateNumber} (${r.plateEmirate})` },
   { field: 'make', headerName: 'Make/Model', width: 160, valueGetter: (_v, r) => `${r.make} ${r.model} ${r.year}` },
   { field: 'vehicleType', headerName: 'Type', width: 100, renderCell: (p) => <Chip size="small" label={String(p.value).replace(/_/g, ' ')} variant="outlined" /> },
@@ -26,15 +25,34 @@ const columns: GridColDef[] = [
   { field: 'status', headerName: 'Status', width: 120, renderCell: (p) => <StatusChip status={p.value as string} /> },
 ];
 
+const disposedColumns: GridColDef[] = [
+  { field: 'plateNumber', headerName: 'Plate', width: 130, valueGetter: (_v, r) => `${r.plateNumber} (${r.plateEmirate})` },
+  { field: 'make', headerName: 'Make/Model', width: 160, valueGetter: (_v, r) => `${r.make} ${r.model} ${r.year}` },
+  { field: 'disposalDate', headerName: 'Disposal date', width: 130, valueGetter: (_v, r) => r.disposal?.disposalDate, valueFormatter: (v) => fmtDate(v as string) },
+  { field: 'method', headerName: 'Method', width: 130, valueGetter: (_v, r) => r.disposal?.method, renderCell: (p) => p.value ? <Chip size="small" variant="outlined" label={String(p.value).replace(/_/g, ' ')} /> : '—' },
+  { field: 'buyer', headerName: 'Buyer', width: 150, valueGetter: (_v, r) => r.disposal?.buyer ?? '—' },
+  { field: 'salePrice', headerName: 'Sale price', width: 120, valueGetter: (_v, r) => r.disposal?.salePrice, valueFormatter: (v) => fmtCurrency(v as number) },
+  { field: 'gainLoss', headerName: 'Gain / Loss', width: 120, valueGetter: (_v, r) => r.disposal?.gainLoss, renderCell: (p) => {
+    const v = p.value as number | null; if (v == null) return '—';
+    return <Chip size="small" color={v >= 0 ? 'success' : 'error'} label={fmtCurrency(v)} />;
+  } },
+];
+
 export default function Vehicles() {
   const qc = useQueryClient();
   const { storeOptions, vendorOptions } = useLookups();
   const [disposeRow, setDisposeRow] = useState<any | null>(null);
   const [historyId, setHistoryId] = useState<string | null>(null);
+  const [tab, setTab] = useState(0); // 0 = active, 1 = disposed
 
   const dispose = useMutation({
     mutationFn: async ({ id, b }: { id: string; b: Record<string, unknown> }) => (await api.post(`/vehicles/${id}/disposal`, b)).data,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['vehicles'] }); setDisposeRow(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['vehicles'] });
+      qc.invalidateQueries({ queryKey: ['lookup-vehicles'] });
+      qc.invalidateQueries({ queryKey: ['availability'] });
+      setDisposeRow(null);
+    },
   });
 
   const fields: FieldDef[] = [
@@ -70,28 +88,61 @@ export default function Vehicles() {
     { name: 'warrantyEndKm', label: 'Warranty end km', type: 'number', half: true },
   ];
 
+  const confirmAndDispose = (values: Record<string, unknown>) => {
+    const sure = confirm(
+      `Dispose ${disposeRow.plateNumber}?\n\nThis is IRREVERSIBLE from the UI:\n` +
+      `• Status becomes "disposed" and it disappears from Availability, Fleet Allocation and all vehicle pickers.\n` +
+      `• Its current driver assignment is released.\n` +
+      `• Any planned/active allocations on or after the disposal date are cancelled.\n\n` +
+      `Continue?`
+    );
+    if (sure) dispose.mutate({ id: disposeRow.id, b: values });
+  };
+
   return (
     <>
-      <CrudListPage
-        title="Vehicles" subtitle="Fleet master — click a row to see full history · add, edit and manage vehicles"
-        resource="vehicles" queryKey="vehicles" permission="vehicles"
-        columns={columns} fields={fields} importable
-        onRowClick={(row) => setHistoryId(row.id)}
-        toInitial={(r) => ({ ...r, purchaseDate: r.purchase?.purchaseDate, purchasePrice: r.purchase?.purchasePrice })}
-        extraActions={(row, refetch) => {
-          const items = [];
-          if (row.assignments?.length) {
-            items.push(
-              <GridActionsCellItem key="release" icon={<LinkOffIcon />} label="Release driver (free vehicle)" showInMenu
-                onClick={async () => { if (confirm(`Release ${row.plateNumber} from its current driver?`)) { await api.post(`/vehicles/${row.id}/release-driver`); refetch(); } }} />
-            );
-          }
-          if (row.status !== 'disposed') {
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}>
+        <Tab label="Active fleet" />
+        <Tab label="Disposed / sold" />
+      </Tabs>
+
+      {tab === 0 ? (
+        <CrudListPage
+          title="Vehicles" subtitle="Fleet master — click a row to see full history · add, edit and manage vehicles"
+          resource="vehicles" queryKey="vehicles" permission="vehicles"
+          columns={activeColumns} fields={fields} importable
+          filterRows={(r) => r.status !== 'disposed'}
+          onRowClick={(row) => setHistoryId(row.id)}
+          toInitial={(r) => ({ ...r, purchaseDate: r.purchase?.purchaseDate, purchasePrice: r.purchase?.purchasePrice })}
+          extraActions={(row, refetch) => {
+            const items = [];
+            if (row.assignments?.length) {
+              items.push(
+                <GridActionsCellItem key="release" icon={<LinkOffIcon />} label="Release driver (free vehicle)" showInMenu
+                  onClick={async () => { if (confirm(`Release ${row.plateNumber} from its current driver?`)) { await api.post(`/vehicles/${row.id}/release-driver`); refetch(); } }} />
+              );
+            }
             items.push(<GridActionsCellItem key="dispose" icon={<SellIcon />} label="Sell / dispose" showInMenu onClick={() => setDisposeRow(row)} />);
-          }
-          return items;
-        }}
-      />
+            return items;
+          }}
+        />
+      ) : (
+        <Box>
+          <Typography variant="h5" sx={{ mb: 0.5 }}>Disposed / sold vehicles</Typography>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            These vehicles are excluded from Availability, Fleet Allocation and all vehicle pickers. Full history remains available.
+          </Alert>
+          <CrudListPage
+            title="Disposed vehicles" subtitle=""
+            resource="vehicles" queryKey="vehicles" permission="vehicles"
+            columns={disposedColumns} fields={[]}
+            filterRows={(r) => r.status === 'disposed'}
+            onRowClick={(row) => setHistoryId(row.id)}
+            hideDelete hideAdd
+          />
+        </Box>
+      )}
+
       <FormDialog
         open={!!disposeRow}
         title={`Sell / dispose ${disposeRow?.plateNumber ?? ''}`}
@@ -104,7 +155,7 @@ export default function Vehicles() {
           { name: 'bookValue', label: 'Book value at sale (AED)', type: 'number', half: true },
         ]}
         submitting={dispose.isPending} error={dispose.error ? apiError(dispose.error) : null}
-        onClose={() => setDisposeRow(null)} onSubmit={(v) => dispose.mutate({ id: disposeRow.id, b: v })}
+        onClose={() => setDisposeRow(null)} onSubmit={confirmAndDispose}
       />
       <VehicleHistoryDrawer vehicleId={historyId} onClose={() => setHistoryId(null)} />
     </>
