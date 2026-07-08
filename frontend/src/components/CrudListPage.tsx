@@ -32,6 +32,8 @@ interface Props {
   // Extra per-row actions (e.g. release a committed vehicle). Receives the row
   // and a refetch callback.
   extraActions?: (row: any, refetch: () => void) => JSX.Element[];
+  // Open a detail view when a row is clicked (e.g. vehicle history slider).
+  onRowClick?: (row: any) => void;
 }
 
 // Generic list + Add/Edit/Delete page for standard REST resources.
@@ -97,7 +99,9 @@ export default function CrudListPage(props: Props) {
           autoHeight rows={rows} columns={columns} loading={list.isLoading}
           getRowId={(r) => (props.getId ? props.getId(r) : r.id)}
           initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-          pageSizeOptions={[25, 50, 100]} disableRowSelectionOnClick sx={{ border: 0 }}
+          pageSizeOptions={[25, 50, 100]} disableRowSelectionOnClick
+          onRowClick={props.onRowClick ? (p) => props.onRowClick!(p.row) : undefined}
+          sx={{ border: 0, ...(props.onRowClick ? { '& .MuiDataGrid-row': { cursor: 'pointer' } } : {}) }}
         />
       </Card>
       <FormDialog

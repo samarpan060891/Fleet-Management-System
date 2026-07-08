@@ -3,12 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DataGrid, GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
 import { Box, Card, Chip, Tabs, Tab, Button } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import StraightenIcon from '@mui/icons-material/Straighten';
 import { api } from '../api/client';
 import { PageHeader, StatusChip } from '../components/ui';
 import FormDialog, { FieldDef } from '../components/FormDialog';
+import ImportDialog from '../components/ImportDialog';
 import { fmtCurrency, fmtDate, fmtKm } from '../i18n';
 import { useAuth } from '../auth/AuthContext';
 import { useLookups, apiError } from '../hooks/useLookups';
@@ -19,6 +21,7 @@ export default function Maintenance() {
   const { vehicleOptions, vendorOptions } = useLookups();
   const [tab, setTab] = useState(0);
   const [addJob, setAddJob] = useState(false);
+  const [importJobs, setImportJobs] = useState(false);
   const [closeJob, setCloseJob] = useState<any | null>(null);
   const [addTyre, setAddTyre] = useState(false);
   const [scrapTyre, setScrapTyre] = useState<any | null>(null);
@@ -94,7 +97,12 @@ export default function Maintenance() {
       <PageHeader
         title="Maintenance" subtitle="Outsourced job cards, PM schedules and tyres"
         action={tab === 0
-          ? can('maintenance:create') && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddJob(true)}>New job card</Button>
+          ? can('maintenance:create') && (
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportJobs(true)}>Import</Button>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddJob(true)}>New job card</Button>
+            </Box>
+          )
           : tab === 2
           ? can('tyres:create') && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddTyre(true)}>Add tyre</Button>
           : undefined}
@@ -120,6 +128,8 @@ export default function Maintenance() {
         fields={[{ name: 'scrapDate', label: 'Scrap date', type: 'date', required: true, half: true }, { name: 'scrapReason', label: 'Reason', required: true }]}
         submitting={scrapMut.isPending} error={scrapMut.error ? apiError(scrapMut.error) : null}
         onClose={() => setScrapTyre(null)} onSubmit={(v) => scrapMut.mutate({ id: scrapTyre.id, b: v })} />
+      <ImportDialog open={importJobs} resource="maintenance" label="Maintenance / Job Cards"
+        onClose={() => setImportJobs(false)} onImported={invJobs} />
     </Box>
   );
 }

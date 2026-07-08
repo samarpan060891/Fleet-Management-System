@@ -4,11 +4,13 @@ import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { Box, Card, CardContent, Typography, Chip, Button, Stack, Alert } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import AddIcon from '@mui/icons-material/Add';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import { api } from '../api/client';
 import { PageHeader, StatusChip } from '../components/ui';
 import FormDialog, { FieldDef } from '../components/FormDialog';
+import ImportDialog from '../components/ImportDialog';
 import { fmtCurrency, fmtDate } from '../i18n';
 import { useAuth } from '../auth/AuthContext';
 import { useLookups, apiError } from '../hooks/useLookups';
@@ -18,6 +20,7 @@ export default function Fuel() {
   const { can } = useAuth();
   const { vehicleOptions, driverOptions } = useLookups();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['fuel'],
@@ -78,7 +81,12 @@ export default function Fuel() {
     <Box>
       <PageHeader
         title="Fuel" subtitle="3-channel entry · odometer-linked efficiency · cash approval workflow"
-        action={can('fuel:create') && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>Log fuel</Button>}
+        action={can('fuel:create') && (
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportOpen(true)}>Import</Button>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>Log fuel</Button>
+          </Box>
+        )}
       />
       {(trend.data?.length ?? 0) > 1 && (
         <Card sx={{ mb: 2 }}>
@@ -111,6 +119,9 @@ export default function Fuel() {
         submitting={create.isPending} error={create.error ? apiError(create.error) : null}
         onClose={() => setDialogOpen(false)} onSubmit={(v) => create.mutate(v)}
       />
+      <ImportDialog open={importOpen} resource="fuel" label="Fuel Transactions"
+        onClose={() => setImportOpen(false)}
+        onImported={() => { qc.invalidateQueries({ queryKey: ['fuel'] }); qc.invalidateQueries({ queryKey: ['fuel-price-trend'] }); }} />
     </Box>
   );
 }

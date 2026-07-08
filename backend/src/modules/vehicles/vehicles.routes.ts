@@ -149,6 +149,35 @@ vehiclesRouter.get(
   })
 );
 
+// Consolidated vehicle history — the full "log sheet": maintenance (job cards +
+// parts), tyres, PM, fuel, fines, incidents, compliance, odometer readings.
+vehiclesRouter.get(
+  '/:id/history',
+  authorize('vehicles', 'read'),
+  validate({ params: z.object({ id: z.string().uuid() }) }),
+  asyncHandler(async (req, res) => {
+    const id = req.params.id;
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { id },
+      include: { store: true, purchase: { include: { supplier: { select: { name: true } } } }, disposal: true, pmState: true, salik: true },
+    });
+    if (!vehicle) throw NotFound('Vehicle not found');
+
+    const [jobCards, tyres, fuel, fines, incidents, documents, odometer, assignments] = await Promise.all([
+      prisma.jobCard.findMany({ where: { vehicleId: id }, orderBy: { dateIn: 'desc' }, include: { parts: true, vendor: { select: { name: true } } } }),
+      prisma.tyre.findMany({ where: { vehicleId: id }, orderBy: { createdAt: 'desc' }, include: { vendor: { select: { name: true } }, treadChecks: { orderBy: { checkedAt: 'desc' }, take: 3 } } }),
+      prisma.fuelTransaction.findMany({ where: { vehicleId: id, isActive: true }, orderBy: { filledAt: 'desc' }, take: 50, include: { driver: { select: { fullName: true } } } }),
+      prisma.fine.findMany({ where: { vehicleId: id, isActive: true }, orderBy: { offenceAt: 'desc' }, include: { driver: { select: { fullName: true } } } }),
+      prisma.incident.findMany({ where: { vehicleId: id, isActive: true }, orderBy: { occurredAt: 'desc' }, include: { driver: { select: { fullName: true } } } }),
+      prisma.complianceDocument.findMany({ where: { vehicleId: id, isActive: true }, orderBy: { expiryDate: 'asc' } }),
+      prisma.odometerReading.findMany({ where: { vehicleId: id }, orderBy: { readingDate: 'desc' }, take: 50 }),
+      prisma.vehicleDriverAssignment.findMany({ where: { vehicleId: id }, orderBy: { effectiveFrom: 'desc' }, include: { driver: { select: { fullName: true, staffId: true } } } }),
+    ]);
+
+    res.json({ vehicle, jobCards, tyres, fuel, fines, incidents, documents, odometer, assignments });
+  })
+);
+
 vehiclesRouter.post(
   '/',
   authorize('vehicles', 'create'),

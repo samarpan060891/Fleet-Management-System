@@ -1,7 +1,9 @@
+import dayjs from 'dayjs';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { Resource } from '../../config/permissions';
 import { driverOnDate } from '../assignments/assignments.service';
 import { recordReading } from '../odometer/odometer.service';
+import { createFuelTransaction } from '../fuel/fuel.service';
 
 export type ColType = 'string' | 'number' | 'date' | 'boolean';
 
@@ -47,6 +49,12 @@ async function resolveStoreByCode(db: PrismaClient, code: unknown): Promise<stri
   const s = await db.store.findUnique({ where: { code: String(code) } });
   if (!s) throw new Error(`Store not found for code "${code}"`);
   return s.id;
+}
+async function resolveVendorByName(db: PrismaClient, name: unknown): Promise<string | undefined> {
+  if (!name) return undefined;
+  const v = await db.vendor.findFirst({ where: { name: String(name), isActive: true } });
+  if (!v) throw new Error(`Vendor not found with name "${name}"`);
+  return v.id;
 }
 
 const withAudit = (data: Record<string, unknown>, actorId: string) => ({ ...data, createdBy: actorId, updatedBy: actorId });
@@ -201,6 +209,86 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
         actorId,
       });
       return r.id;
+    },
+  },
+
+  fuel: {
+    label: 'Fuel Transactions',
+    permission: 'fuel',
+    columns: [
+      { key: 'vehiclePlate', label: 'Vehicle Plate', required: true, example: 'A-12345' },
+      { key: 'vehicleEmirate', label: 'Vehicle Emirate', example: 'Dubai' },
+      { key: 'filledAt', label: 'Fill Date', type: 'date', required: true, example: '2026-06-15' },
+      { key: 'odometer', label: 'Odometer (km)', type: 'number', example: '45200' },
+      { key: 'litres', label: 'Litres', type: 'number', required: true, example: '48' },
+      { key: 'amount', label: 'Amount (AED)', type: 'number', required: true, example: '150' },
+      { key: 'rate', label: 'Rate (AED/L)', type: 'number', example: '3.1' },
+      { key: 'channel', label: 'Channel', required: true, enumValues: ['vip_kit', 'fuel_buddy', 'cash'], example: 'vip_kit' },
+      { key: 'driverStaffId', label: 'Driver Staff ID', note: 'Optional — auto from assignment if blank' },
+    ],
+    build: async (row, db) => {
+      const vehicleId = await resolveVehicle(db, row.vehiclePlate, row.vehicleEmirate);
+      const driverId = await resolveDriverByStaff(db, row.driverStaffId);
+      return {
+        vehicleId, filledAt: row.filledAt, odometer: row.odometer, litres: row.litres,
+        amount: row.amount, rate: row.rate, channel: row.channel, driverId,
+      };
+    },
+    // Reuses the fuel service (efficiency, anomalies, odometer advance).
+    create: async (data, _db, actorId) => {
+      const r = await createFuelTransaction(data as any, actorId);
+      return r.id;
+    },
+  },
+
+  maintenance: {
+    label: 'Maintenance / Job Cards',
+    permission: 'maintenance',
+    columns: [
+      { key: 'vehiclePlate', label: 'Vehicle Plate', required: true, example: 'A-12345' },
+      { key: 'vehicleEmirate', label: 'Vehicle Emirate', example: 'Dubai' },
+      { key: 'dateIn', label: 'Date In', type: 'date', required: true, example: '2026-05-01' },
+      { key: 'dateOut', label: 'Date Out', type: 'date', example: '2026-05-03' },
+      { key: 'type', label: 'Type', required: true, enumValues: ['scheduled', 'breakdown', 'accident', 'tyre'], example: 'scheduled' },
+      { key: 'description', label: 'Description / work done', example: 'PM service + oil change' },
+      { key: 'vendorName', label: 'Workshop / vendor name', note: 'Must match an existing vendor' },
+      { key: 'invoiceNumber', label: 'Invoice number' },
+      { key: 'odometerIn', label: 'Odometer In (km)', type: 'number' },
+      { key: 'odometerOut', label: 'Odometer Out (km)', type: 'number' },
+      { key: 'labourCharges', label: 'Labour charges (AED)', type: 'number' },
+      { key: 'otherCharges', label: 'Other charges (AED)', type: 'number' },
+      { key: 'totalCost', label: 'Total cost (AED)', type: 'number', example: '650' },
+    ],
+    build: async (row, db) => {
+      const vehicleId = await resolveVehicle(db, row.vehiclePlate, row.vehicleEmirate);
+      const vendorId = await resolveVendorByName(db, row.vendorName);
+      const total = row.totalCost != null ? Number(row.totalCost)
+        : Number(row.labourCharges ?? 0) + Number(row.otherCharges ?? 0);
+      return {
+        vehicleId, vendorId, dateIn: row.dateIn, dateOut: row.dateOut, type: row.type,
+        description: row.description, invoiceNumber: row.invoiceNumber,
+        odometerIn: row.odometerIn, odometerOut: row.odometerOut,
+        labourCharges: row.labourCharges, otherCharges: row.otherCharges, totalCost: total,
+      };
+    },
+    // Historical job cards import as closed (if dateOut) without changing vehicle status.
+    create: async (data, db, actorId) => {
+      const d: any = data;
+      const jobNumber = `JC-${dayjs(d.dateIn as Date).format('YYYYMM')}-${Math.floor(Math.random() * 90000 + 10000)}`;
+      const created = await db.jobCard.create({
+        data: {
+          jobNumber, vehicleId: d.vehicleId, vendorId: d.vendorId ?? undefined,
+          dateIn: d.dateIn, dateOut: d.dateOut ?? undefined,
+          downtimeDays: d.dateOut ? Math.max(0, dayjs(d.dateOut).diff(dayjs(d.dateIn), 'day')) : undefined,
+          type: d.type, description: d.description, invoiceNumber: d.invoiceNumber,
+          odometerIn: d.odometerIn ?? undefined, odometerOut: d.odometerOut ?? undefined,
+          labourCharges: d.labourCharges ?? undefined, otherCharges: d.otherCharges ?? undefined,
+          totalCost: d.totalCost ?? undefined,
+          status: d.dateOut ? 'closed' : 'open',
+          createdBy: actorId, updatedBy: actorId,
+        },
+      });
+      return created.id;
     },
   },
 

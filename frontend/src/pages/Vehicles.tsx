@@ -6,6 +6,7 @@ import LinkOffIcon from '@mui/icons-material/LinkOff';
 import SellIcon from '@mui/icons-material/Sell';
 import CrudListPage from '../components/CrudListPage';
 import FormDialog, { FieldDef } from '../components/FormDialog';
+import VehicleHistoryDrawer from '../components/VehicleHistoryDrawer';
 import { StatusChip } from '../components/ui';
 import { fmtKm, fmtCurrency } from '../i18n';
 import { useLookups, apiError } from '../hooks/useLookups';
@@ -29,6 +30,7 @@ export default function Vehicles() {
   const qc = useQueryClient();
   const { storeOptions, vendorOptions } = useLookups();
   const [disposeRow, setDisposeRow] = useState<any | null>(null);
+  const [historyId, setHistoryId] = useState<string | null>(null);
 
   const dispose = useMutation({
     mutationFn: async ({ id, b }: { id: string; b: Record<string, unknown> }) => (await api.post(`/vehicles/${id}/disposal`, b)).data,
@@ -71,9 +73,10 @@ export default function Vehicles() {
   return (
     <>
       <CrudListPage
-        title="Vehicles" subtitle="Fleet master — add, edit and manage vehicles"
+        title="Vehicles" subtitle="Fleet master — click a row to see full history · add, edit and manage vehicles"
         resource="vehicles" queryKey="vehicles" permission="vehicles"
         columns={columns} fields={fields} importable
+        onRowClick={(row) => setHistoryId(row.id)}
         toInitial={(r) => ({ ...r, purchaseDate: r.purchase?.purchaseDate, purchasePrice: r.purchase?.purchasePrice })}
         extraActions={(row, refetch) => {
           const items = [];
@@ -103,6 +106,7 @@ export default function Vehicles() {
         submitting={dispose.isPending} error={dispose.error ? apiError(dispose.error) : null}
         onClose={() => setDisposeRow(null)} onSubmit={(v) => dispose.mutate({ id: disposeRow.id, b: v })}
       />
+      <VehicleHistoryDrawer vehicleId={historyId} onClose={() => setHistoryId(null)} />
     </>
   );
 }
