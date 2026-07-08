@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
 import { useAuth } from './auth/AuthContext';
 import Layout from './components/Layout';
+import DriverLayout from './components/DriverLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Vehicles from './pages/Vehicles';
@@ -51,12 +52,27 @@ export default function App() {
   // Drivers land on their mobile screen by default.
   const home = user.role === 'DRIVER' ? '/my-vehicle' : '/';
 
+  // Drivers get a completely separate, single-screen shell: no fleet-wide
+  // pages are even routable for them, so there's no way to reach another
+  // driver's or the whole fleet's data by navigating directly to a URL.
+  if (user.role === 'DRIVER') {
+    return (
+      <Routes>
+        <Route path="/login" element={<Navigate to={home} replace />} />
+        <Route element={<DriverLayout />}>
+          <Route path="/" element={<Navigate to="/my-vehicle" replace />} />
+          <Route path="/my-vehicle" element={<DriverScreen />} />
+          <Route path="*" element={<Navigate to="/my-vehicle" replace />} />
+        </Route>
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       <Route path="/login" element={<Navigate to={home} replace />} />
       <Route element={<Layout />}>
-        <Route path="/" element={user.role === 'DRIVER' ? <Navigate to="/my-vehicle" replace /> : <Dashboard />} />
-        <Route path="/my-vehicle" element={<DriverScreen />} />
+        <Route path="/" element={<Dashboard />} />
         <Route path="/availability" element={<Availability />} />
         <Route path="/allocation" element={<Allocation />} />
         <Route path="/vehicles" element={<Vehicles />} />

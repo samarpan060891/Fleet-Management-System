@@ -15,7 +15,6 @@ import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import SettingsIcon from '@mui/icons-material/Settings';
 import HistoryIcon from '@mui/icons-material/History';
-import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import SpeedIcon from '@mui/icons-material/Speed';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import StoreIcon from '@mui/icons-material/Store';
@@ -30,13 +29,12 @@ export interface NavItem {
   icon: SvgIconComponent;
   // Show if the user holds this permission (or always if undefined).
   requires?: string;
-  // Only visible to the Driver role (the mobile "My Vehicle" screen).
-  driverOnly?: boolean;
 }
 
 // Nav is filtered client-side by permissions; the server still enforces RBAC.
+// The DRIVER role never renders this nav at all — it gets its own single-
+// screen DriverLayout shell instead (see App.tsx).
 export const NAV: NavItem[] = [
-  { key: 'driver', path: '/my-vehicle', labelKey: 'nav.driver', icon: PhoneAndroidIcon, driverOnly: true },
   { key: 'dashboard', path: '/', labelKey: 'nav.dashboard', icon: DashboardIcon, requires: 'dashboard:read' },
   { key: 'availability', path: '/availability', labelKey: 'nav.availability', icon: EventAvailableIcon, requires: 'availability:read' },
   { key: 'allocation', path: '/allocation', labelKey: 'nav.allocation', icon: AssignmentTurnedInIcon, requires: 'allocations:read' },

@@ -28,10 +28,7 @@ export default function Layout() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [open, setOpen] = useState(false);
 
-  const items = NAV.filter((i) => {
-    if (i.driverOnly) return user?.role === 'DRIVER';
-    return !i.requires || can(i.requires);
-  });
+  const items = NAV.filter((i) => !i.requires || can(i.requires));
 
   const drawer = (
     <Box>

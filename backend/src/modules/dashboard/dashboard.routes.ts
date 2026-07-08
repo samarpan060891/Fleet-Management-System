@@ -140,6 +140,20 @@ dashboardRouter.get(
       orderBy: { startTime: 'asc' },
     });
 
+    // Past trips — completed/cancelled allocations before today, most recent
+    // first. This is the driver's own trip history (dashboard "past trips").
+    const pastTrips = await prisma.fleetAllocation.findMany({
+      where: {
+        isActive: true,
+        date: { lt: today },
+        status: { in: ['completed', 'cancelled'] },
+        OR: [{ driverId }, ...(assignment?.vehicleId ? [{ vehicleId: assignment.vehicleId }] : [])],
+      },
+      include: { store: { select: { code: true, name: true } }, route: { select: { code: true, name: true } } },
+      orderBy: { date: 'desc' },
+      take: 20,
+    });
+
     res.json({
       vehicle: assignment?.vehicle
         ? {
@@ -154,6 +168,14 @@ dashboardRouter.get(
       myDocuments: docs,
       allocations: allocations.map((a) => ({
         id: a.id, type: a.type, status: a.status, startTime: a.startTime, endTime: a.endTime,
+        destination: a.type === 'store_delivery' ? (a.store ? `${a.store.code} · ${a.store.name}` : null)
+          : a.type === 'staff_transport' ? (a.route ? `${a.route.code} · ${a.route.name}` : null)
+          : [a.reference, a.area, a.emirate].filter(Boolean).join(' · ') || null,
+      })),
+      pastTrips: pastTrips.map((a) => ({
+        id: a.id, type: a.type, status: a.status, date: a.date,
+        startTime: a.startTime, endTime: a.endTime,
+        tripStartAt: a.tripStartAt, tripEndAt: a.tripEndAt, waitingMinutes: a.waitingMinutes,
         destination: a.type === 'store_delivery' ? (a.store ? `${a.store.code} · ${a.store.name}` : null)
           : a.type === 'staff_transport' ? (a.route ? `${a.route.code} · ${a.route.name}` : null)
           : [a.reference, a.area, a.emirate].filter(Boolean).join(' · ') || null,

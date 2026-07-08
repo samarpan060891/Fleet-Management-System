@@ -62,6 +62,12 @@ complianceRouter.get(
       const days = Number(req.query.expiringInDays);
       where.expiryDate = { lte: new Date(Date.now() + days * 86400000) };
     }
+    // Drivers only ever see their own documents and their assigned vehicle's
+    // documents, never the whole fleet's compliance record.
+    if (req.user!.role === 'DRIVER') {
+      const asg = await prisma.vehicleDriverAssignment.findFirst({ where: { driverId: req.user!.driverId ?? '', effectiveTo: null } });
+      where.OR = [{ driverId: req.user!.driverId ?? '__none__' }, { vehicleId: asg?.vehicleId ?? '__none__' }];
+    }
     const [rows, total] = await Promise.all([
       prisma.complianceDocument.findMany({
         where,

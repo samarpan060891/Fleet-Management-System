@@ -13,6 +13,41 @@ import { useAuth } from '../auth/AuthContext';
 
 interface Staff { employeeId: string; name: string; pickupPoint: string | null; status: string | null }
 interface RouteT { id: string; code: string; name: string; scheduledTime: string | null; staff: Staff[] }
+interface PastTrip {
+  id: string; type: string; status: string; date: string;
+  startTime: string | null; endTime: string | null;
+  tripStartAt: string | null; tripEndAt: string | null; waitingMinutes: number | null;
+  destination: string | null;
+}
+
+const TRIP_TYPE_LABEL: Record<string, string> = {
+  customer_delivery: 'Customer delivery', store_delivery: 'Store delivery', staff_transport: 'Staff pick & drop',
+};
+const fmtTime = (d: string | null) => (d ? new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null);
+
+function PastTripCard({ trip }: { trip: PastTrip }) {
+  const started = fmtTime(trip.tripStartAt);
+  const ended = fmtTime(trip.tripEndAt);
+  const durationMin = trip.tripStartAt && trip.tripEndAt
+    ? Math.round((new Date(trip.tripEndAt).getTime() - new Date(trip.tripStartAt).getTime()) / 60000)
+    : null;
+  return (
+    <Box sx={{ py: 1, borderBottom: '1px solid #eee', '&:last-child': { borderBottom: 0 } }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+        <Box>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>{TRIP_TYPE_LABEL[trip.type] ?? titleCase(trip.type)}</Typography>
+          <Typography variant="caption" color="text.secondary">{trip.destination ?? '—'}</Typography>
+        </Box>
+        <Chip size="small" color={trip.status === 'completed' ? 'success' : 'default'} label={titleCase(trip.status)} />
+      </Stack>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+        {fmtDate(trip.date)}
+        {started && ended ? ` · ${started} – ${ended} (${durationMin} min)` : trip.startTime ? ` · planned ${trip.startTime}${trip.endTime ? `–${trip.endTime}` : ''}` : ''}
+        {trip.waitingMinutes ? ` · waiting ${trip.waitingMinutes} min` : ''}
+      </Typography>
+    </Box>
+  );
+}
 
 export default function DriverScreen() {
   const qc = useQueryClient();
@@ -112,6 +147,17 @@ export default function DriverScreen() {
             })}
             {(data.myDocuments ?? []).length === 0 && <Typography variant="body2" color="text.secondary">No documents.</Typography>}
           </Stack>
+        </CardContent>
+      </Card>
+
+      <Typography variant="subtitle2" sx={{ mb: 1 }}>My past trips</Typography>
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          {(data.pastTrips as PastTrip[] ?? []).length === 0 ? (
+            <Typography variant="body2" color="text.secondary">No past trips yet.</Typography>
+          ) : (
+            (data.pastTrips as PastTrip[]).map((trip) => <PastTripCard key={trip.id} trip={trip} />)
+          )}
         </CardContent>
       </Card>
 

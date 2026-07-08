@@ -104,6 +104,11 @@ vehiclesRouter.get(
         { vin: { contains: search, mode: 'insensitive' } },
       ];
     }
+    // Drivers only ever see their own currently-assigned vehicle, never the fleet.
+    if (req.user!.role === 'DRIVER') {
+      const asg = await prisma.vehicleDriverAssignment.findFirst({ where: { driverId: req.user!.driverId ?? '', effectiveTo: null } });
+      where.id = asg?.vehicleId ?? '__none__';
+    }
     const [rows, total] = await Promise.all([
       prisma.vehicle.findMany({
         where,
@@ -130,6 +135,10 @@ vehiclesRouter.get(
   authorize('vehicles', 'read'),
   validate({ params: z.object({ id: z.string().uuid() }) }),
   asyncHandler(async (req, res) => {
+    if (req.user!.role === 'DRIVER') {
+      const asg = await prisma.vehicleDriverAssignment.findFirst({ where: { driverId: req.user!.driverId ?? '', effectiveTo: null } });
+      if (asg?.vehicleId !== req.params.id) throw NotFound('Vehicle not found');
+    }
     const vehicle = await prisma.vehicle.findUnique({
       where: { id: req.params.id },
       include: {
@@ -159,6 +168,10 @@ vehiclesRouter.get(
   validate({ params: z.object({ id: z.string().uuid() }) }),
   asyncHandler(async (req, res) => {
     const id = req.params.id;
+    if (req.user!.role === 'DRIVER') {
+      const asg = await prisma.vehicleDriverAssignment.findFirst({ where: { driverId: req.user!.driverId ?? '', effectiveTo: null } });
+      if (asg?.vehicleId !== id) throw NotFound('Vehicle not found');
+    }
     const vehicle = await prisma.vehicle.findUnique({
       where: { id },
       include: { store: true, purchase: { include: { supplier: { select: { name: true } } } }, disposal: true, pmState: true, salik: true },
