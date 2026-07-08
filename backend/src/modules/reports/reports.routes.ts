@@ -135,13 +135,12 @@ reportsRouter.get(
       include: { store: true, purchase: { include: { supplier: { select: { name: true } } } }, disposal: true, pmState: true },
     });
     if (!vehicle) throw NotFound('Vehicle not found');
-    const [jobCards, tyres, fines, incidents, documents, fuelAgg] = await Promise.all([
+    const [jobCards, tyres, fines, incidents, documents] = await Promise.all([
       prisma.jobCard.findMany({ where: { vehicleId: id }, orderBy: { dateIn: 'desc' }, include: { parts: true, vendor: { select: { name: true } } } }),
       prisma.tyre.findMany({ where: { vehicleId: id }, orderBy: { createdAt: 'desc' }, include: { vendor: { select: { name: true } } } }),
       prisma.fine.findMany({ where: { vehicleId: id, isActive: true }, orderBy: { offenceAt: 'desc' } }),
       prisma.incident.findMany({ where: { vehicleId: id, isActive: true }, orderBy: { occurredAt: 'desc' } }),
       prisma.complianceDocument.findMany({ where: { vehicleId: id, isActive: true }, orderBy: { expiryDate: 'asc' } }),
-      prisma.fuelTransaction.aggregate({ where: { vehicleId: id, isActive: true }, _sum: { amount: true, litres: true }, _count: true }),
     ]);
     const tco = await computeVehicleTco(id, dayjs().startOf('year').toDate(), new Date());
 
@@ -301,10 +300,7 @@ reportsRouter.get(
       ['Depreciation', money(tco.buckets.depreciation)],
       ['Total', money(tco.totalCost)],
     ]);
-    bullets([
-      `Cost per km: ${tco.costPerKm ?? 'n/a'}`,
-      `Fuel lifetime: ${fuelAgg._count} fills, ${Number(fuelAgg._sum.litres ?? 0)} L, AED ${money(fuelAgg._sum.amount)}`,
-    ]);
+    bullets([`Cost per km: ${tco.costPerKm ?? 'n/a'}`]);
 
     section('PM schedule');
     kvTable([
