@@ -292,6 +292,65 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
     },
   },
 
+  tyres: {
+    label: 'Tyres',
+    permission: 'tyres',
+    columns: [
+      { key: 'serial', label: 'Tyre Serial', required: true, example: 'TY-0001' },
+      { key: 'brand', label: 'Brand', example: 'Bridgestone' },
+      { key: 'vehiclePlate', label: 'Vehicle Plate', example: 'A-12345' },
+      { key: 'vehicleEmirate', label: 'Vehicle Emirate', example: 'Dubai' },
+      { key: 'position', label: 'Fitment Position', note: 'e.g. FL, FR, RL, RR', example: 'FL' },
+      { key: 'fitmentDate', label: 'Fitment Date', type: 'date', example: '2026-01-15' },
+      { key: 'fitmentOdometer', label: 'Fitment Odometer (km)', type: 'number' },
+      { key: 'treadDepthMm', label: 'Tread Depth (mm)', type: 'number', example: '7.5' },
+      { key: 'vendorName', label: 'Supplier / vendor name', note: 'Must match an existing vendor' },
+      { key: 'cost', label: 'Cost (AED)', type: 'number', example: '420' },
+    ],
+    build: async (row, db) => {
+      const vehicleId = row.vehiclePlate ? await resolveVehicle(db, row.vehiclePlate, row.vehicleEmirate) : undefined;
+      const vendorId = await resolveVendorByName(db, row.vendorName);
+      return {
+        serial: row.serial, brand: row.brand, vehicleId, position: row.position,
+        fitmentDate: row.fitmentDate, fitmentOdometer: row.fitmentOdometer,
+        treadDepthMm: row.treadDepthMm, vendorId, cost: row.cost,
+      };
+    },
+    create: async (data, db, actorId) => (await db.tyre.create({ data: withAudit(data, actorId) as Prisma.TyreUncheckedCreateInput })).id,
+  },
+
+  incidents: {
+    label: 'Incidents & Claims',
+    permission: 'incidents',
+    columns: [
+      { key: 'vehiclePlate', label: 'Vehicle Plate', required: true, example: 'A-12345' },
+      { key: 'vehicleEmirate', label: 'Vehicle Emirate', example: 'Dubai' },
+      { key: 'driverStaffId', label: 'Driver Staff ID', note: 'Optional' },
+      { key: 'occurredAt', label: 'Date of Incident', type: 'date', required: true, example: '2026-02-10' },
+      { key: 'emirate', label: 'Emirate', example: 'Sharjah' },
+      { key: 'area', label: 'Area', example: 'Industrial 5' },
+      { key: 'description', label: 'Description' },
+      { key: 'policeReportNo', label: 'Police Report No.' },
+      { key: 'thirdParty', label: 'Third-Party Details' },
+      { key: 'insuranceVendorName', label: 'Insurance Vendor Name', note: 'Must match an existing vendor' },
+      { key: 'claimStatus', label: 'Claim Status', enumValues: ['reported', 'under_review', 'approved', 'rejected', 'settled'], example: 'reported' },
+      { key: 'claimAmount', label: 'Claim Amount (AED)', type: 'number' },
+      { key: 'settlementAmount', label: 'Settlement Amount (AED)', type: 'number' },
+    ],
+    build: async (row, db) => {
+      const vehicleId = await resolveVehicle(db, row.vehiclePlate, row.vehicleEmirate);
+      const driverId = await resolveDriverByStaff(db, row.driverStaffId);
+      const insuranceVendorId = await resolveVendorByName(db, row.insuranceVendorName);
+      return {
+        vehicleId, driverId, occurredAt: row.occurredAt, emirate: row.emirate, area: row.area,
+        description: row.description, policeReportNo: row.policeReportNo, thirdParty: row.thirdParty,
+        insuranceVendorId, claimStatus: row.claimStatus ?? 'reported',
+        claimAmount: row.claimAmount, settlementAmount: row.settlementAmount,
+      };
+    },
+    create: async (data, db, actorId) => (await db.incident.create({ data: withAudit(data, actorId) as Prisma.IncidentUncheckedCreateInput })).id,
+  },
+
   fines: {
     label: 'Fines',
     permission: 'fines',

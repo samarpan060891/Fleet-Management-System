@@ -24,6 +24,7 @@ export default function Maintenance() {
   const [importJobs, setImportJobs] = useState(false);
   const [closeJob, setCloseJob] = useState<any | null>(null);
   const [addTyre, setAddTyre] = useState(false);
+  const [importTyres, setImportTyres] = useState(false);
   const [scrapTyre, setScrapTyre] = useState<any | null>(null);
   const [treadTyre, setTreadTyre] = useState<any | null>(null);
 
@@ -104,7 +105,12 @@ export default function Maintenance() {
             </Box>
           )
           : tab === 2
-          ? can('tyres:create') && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddTyre(true)}>Add tyre</Button>
+          ? can('tyres:create') && (
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setImportTyres(true)}>Import</Button>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddTyre(true)}>Add tyre</Button>
+            </Box>
+          )
           : undefined}
       />
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2 }}><Tab label="Job Cards" /><Tab label="PM Due" /><Tab label="Tyres" /></Tabs>
@@ -130,6 +136,8 @@ export default function Maintenance() {
         onClose={() => setScrapTyre(null)} onSubmit={(v) => scrapMut.mutate({ id: scrapTyre.id, b: v })} />
       <ImportDialog open={importJobs} resource="maintenance" label="Maintenance / Job Cards"
         onClose={() => setImportJobs(false)} onImported={invJobs} />
+      <ImportDialog open={importTyres} resource="tyres" label="Tyres"
+        onClose={() => setImportTyres(false)} onImported={invTyres} />
     </Box>
   );
 }

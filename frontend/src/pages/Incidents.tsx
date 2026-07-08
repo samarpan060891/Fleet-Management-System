@@ -42,7 +42,7 @@ export default function Incidents() {
     <CrudListPage
       title="Incidents & Claims" subtitle="Accident register with claim lifecycle"
       resource="incidents" queryKey="incidents" permission="incidents"
-      columns={columns} fields={fields} hideDelete
+      columns={columns} fields={fields} hideDelete importable
     />
   );
 }
