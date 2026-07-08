@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { prisma } from '../../lib/prisma';
 import { authorize } from '../../middleware/authorize';
 import { asyncHandler } from '../../middleware/errorHandler';
-import { computeFleetAssets, resolvePeriod } from '../costs/costs.service';
+import { computeFleetAssets, computeFleetCostPerKm, resolvePeriod } from '../costs/costs.service';
 import { computeCostTrends, computeFleetProfile } from './dashboard.analytics';
 import { Forbidden } from '../../lib/errors';
 import { utcToday } from '../../lib/dateOnly';
@@ -47,6 +47,7 @@ dashboardRouter.get(
       prisma.vendorInvoice.aggregate({ where: { isActive: true, status: { in: ['unpaid', 'partial'] } }, _sum: { amount: true, paidAmount: true } }),
     ]);
     const profile = await computeFleetProfile();
+    const costPerKm = await computeFleetCostPerKm(from, to);
     const fleetUtilization = activeVehicles > 0 ? Math.round((allocatedVehicles.length / activeVehicles) * 100) : 0;
     const driverUtilization = activeDrivers > 0 ? Math.round((allocatedDrivers.length / activeDrivers) * 100) : 0;
     const payablesOutstanding = Number(payablesOpen._sum.amount ?? 0) - Number(payablesOpen._sum.paidAmount ?? 0);
@@ -76,6 +77,7 @@ dashboardRouter.get(
       payablesOutstanding: +payablesOutstanding.toFixed(2),
       fleetAge: profile.fleetAge,
       experience: profile.experience,
+      costPerKm,
     });
   })
 );

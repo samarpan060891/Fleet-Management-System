@@ -32,6 +32,13 @@ export async function computeFleetProfile() {
   }
 
   const tenures = drivers.map((d) => now.diff(dayjs(d.joiningDate!), 'day') / 365);
+  const tenureBands = { '0-1': 0, '1-3': 0, '3-5': 0, '5+': 0 };
+  for (const t of tenures) {
+    if (t < 1) tenureBands['0-1']++;
+    else if (t < 3) tenureBands['1-3']++;
+    else if (t < 5) tenureBands['3-5']++;
+    else tenureBands['5+']++;
+  }
 
   return {
     fleetAge: {
@@ -45,6 +52,7 @@ export async function computeFleetProfile() {
       driverCount: drivers.length,
       avgVehicleOdometer: Math.round(mean(vehicles.map((v) => v.currentOdometer))),
       avgKmPerYear: Math.round(mean(kmPerYear)),
+      tenureDistribution: tenureBands,
     },
   };
 }

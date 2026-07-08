@@ -141,6 +141,35 @@ export async function computeFleetAssets(): Promise<FleetAssets> {
   };
 }
 
+export interface FleetCostPerKm {
+  totalCost: number;
+  cashCost: number;
+  kmRun: number;
+  costPerKm: number | null;
+  cashCostPerKm: number | null;
+}
+
+// Fleet-wide cost-per-km for a period: sum of every vehicle's cost and km run.
+export async function computeFleetCostPerKm(from: Date, to: Date): Promise<FleetCostPerKm> {
+  const vehicles = await prisma.vehicle.findMany({ where: { isActive: true }, select: { id: true } });
+  let totalCost = 0;
+  let cash = 0;
+  let kmRun = 0;
+  for (const v of vehicles) {
+    const t = await computeVehicleTco(v.id, from, to);
+    totalCost += t.totalCost;
+    cash += t.cashCost;
+    kmRun += t.kmRun;
+  }
+  return {
+    totalCost: +totalCost.toFixed(2),
+    cashCost: +cash.toFixed(2),
+    kmRun,
+    costPerKm: costPerKm(totalCost, kmRun),
+    cashCostPerKm: costPerKm(cash, kmRun),
+  };
+}
+
 // Resolve MTD / YTD / custom period from query.
 export function resolvePeriod(q: { period?: string; from?: string; to?: string }): { from: Date; to: Date } {
   const now = dayjs();
