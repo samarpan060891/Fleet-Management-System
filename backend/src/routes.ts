@@ -26,6 +26,7 @@ import { odometerRouter } from './modules/odometer/odometer.routes';
 import { allocationsRouter } from './modules/allocations/allocations.routes';
 import { paymentsRouter } from './modules/payments/payments.routes';
 import { optionListsRouter } from './modules/optionLists/optionLists.routes';
+import { rosterRouter } from './modules/roster/roster.routes';
 
 // Central API registry. Each module is independent (shares vehicle/driver master
 // only), so IT can maintain any one without breaking the others.
@@ -58,3 +59,4 @@ apiRouter.use('/audit', auditRouter);
 apiRouter.use('/import', importRouter);
 apiRouter.use('/odometer', odometerRouter);
 apiRouter.use('/option-lists', optionListsRouter);
+apiRouter.use('/roster', rosterRouter);

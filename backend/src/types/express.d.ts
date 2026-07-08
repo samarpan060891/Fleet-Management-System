@@ -9,6 +9,7 @@ declare global {
         email: string;
         role: Role;
         driverId?: string | null;
+        employeeId?: string | null;
       };
     }
   }

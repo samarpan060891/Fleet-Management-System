@@ -31,6 +31,7 @@ enum Role {
   WAREHOUSE_MANAGER
   DRIVER
   MANAGEMENT
+  STAFF
 }
 
 enum VehicleType {
@@ -146,6 +147,7 @@ enum AttendanceStatus {
 enum AttendanceMarkedBy {
   coordinator
   driver
+  staff
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +164,11 @@ model User {
   // Optional link to a Driver record for the Driver role (mobile screen).
   driverId     String?  @unique @map("driver_id")
   driver       Driver?  @relation(fields: [driverId], references: [id])
+  // Optional link to an Employee record for the Staff role (mobile screen).
+  // The staff account logs in with staff ID + PIN, not this email/password —
+  // passwordHash holds the hashed PIN, email is a synthetic placeholder.
+  employeeId   String?  @unique @map("employee_id")
+  employee     Employee? @relation(fields: [employeeId], references: [id])
   lastLoginAt  DateTime? @map("last_login_at")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -253,6 +260,7 @@ model Driver {
   id               String   @id @default(uuid())
   fullName         String   @map("full_name")
   staffId          String   @unique @map("staff_id")
+  phone            String?
   dob              DateTime?
   bloodGroup       String?  @map("blood_group")
   nationality      String?
@@ -354,6 +362,7 @@ model Employee {
 
   routeMaps   RouteEmployee[]
   attendance  Attendance[]
+  user        User?
 
   @@map("employees")
 }
@@ -763,6 +772,7 @@ model RouteEmployee {
   employeeId   String   @map("employee_id")
   employee     Employee @relation(fields: [employeeId], references: [id])
   pickupPoint  String?  @map("pickup_point") // overrides employee default per route
+  sequence     Int?     // stop order along the route, for the driver/staff progress stepper
   effectiveFrom DateTime @map("effective_from")
   effectiveTo   DateTime? @map("effective_to")
   isActive     Boolean  @default(true) @map("is_active")
@@ -784,6 +794,11 @@ model Attendance {
   status     AttendanceStatus
   markedBy   AttendanceMarkedBy @map("marked_by")
   markedByUserId String?      @map("marked_by_user_id")
+  // Route-progress timestamps: when the driver marked the vehicle as having
+  // reached this stop, and when the employee confirmed pickup/drop-off
+  // themselves from their own screen.
+  reachedAt   DateTime?       @map("reached_at")
+  confirmedAt DateTime?       @map("confirmed_at")
   note       String?
   createdAt  DateTime         @default(now()) @map("created_at")
   updatedAt  DateTime         @updatedAt @map("updated_at")

@@ -38,6 +38,7 @@ export const RESOURCES = [
   'transport', // routes, mapping
   'allocations', // fleet allocation / dispatch
   'attendance',
+  'roster', // driver/staff route-progress mobile screens (pickup/drop confirmations)
   'availability',
   'alerts',
   'reports',
@@ -131,6 +132,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     ...crud('transport'),
     ...crud('allocations'),
     ...crud('attendance'),
+    ...crud('roster'),
     ...read('assignments'),
     ...read('alerts'),
     ...read('availability'),
@@ -163,6 +165,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'attendance:read',
     'attendance:create',
     'attendance:update',
+    'roster:read',
+    'roster:create',
     'fuel:create',
     'odometer:create',
     'odometer:read',
@@ -179,6 +183,14 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     ...read('reports'),
     ...read('alerts'),
     ...read('audit'),
+  ],
+
+  // Mobile screen: own roster only — which route, which vehicle/driver,
+  // route progress, and self pickup/drop confirmation.
+  STAFF: [
+    ...base,
+    'roster:read',
+    'roster:create',
   ],
 };
 

@@ -100,11 +100,11 @@ transportRouter.post(
   authorize('transport', 'update'),
   validate({
     params: z.object({ id: z.string().uuid() }),
-    body: z.object({ employeeId: z.string().uuid(), pickupPoint: z.string().optional(), effectiveFrom: z.string() }),
+    body: z.object({ employeeId: z.string().uuid(), pickupPoint: z.string().optional(), sequence: z.number().int().min(1).optional(), effectiveFrom: z.string() }),
   }),
   asyncHandler(async (req, res) => {
     const map = await prisma.routeEmployee.create({
-      data: { routeId: req.params.id, employeeId: req.body.employeeId, pickupPoint: req.body.pickupPoint, effectiveFrom: new Date(req.body.effectiveFrom), createdBy: req.user!.id },
+      data: { routeId: req.params.id, employeeId: req.body.employeeId, pickupPoint: req.body.pickupPoint, sequence: req.body.sequence, effectiveFrom: new Date(req.body.effectiveFrom), createdBy: req.user!.id },
     });
     await audit({ entity: 'route_employees', entityId: map.id, action: 'create', actor: actorFrom(req), after: map });
     res.status(201).json(map);

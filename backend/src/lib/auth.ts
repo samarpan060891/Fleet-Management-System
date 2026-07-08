@@ -8,6 +8,7 @@ export interface JwtPayload {
   email: string;
   role: Role;
   driverId?: string | null;
+  employeeId?: string | null;
 }
 
 export const hashPassword = (plain: string): Promise<string> =>

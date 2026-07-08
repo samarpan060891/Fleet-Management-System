@@ -7,6 +7,7 @@ import { useLookups } from '../hooks/useLookups';
 const columns: GridColDef[] = [
   { field: 'fullName', headerName: 'Name', width: 180 },
   { field: 'staffId', headerName: 'Staff ID', width: 120 },
+  { field: 'phone', headerName: 'Phone', width: 140 },
   { field: 'nationality', headerName: 'Nationality', width: 120 },
   { field: 'licenceNumber', headerName: 'Licence', width: 120 },
   { field: 'licenceExpiry', headerName: 'Licence Expiry', width: 140, valueFormatter: (v) => fmtDate(v as string) },
@@ -20,6 +21,7 @@ export default function Drivers() {
   const fields: FieldDef[] = [
     { name: 'fullName', label: 'Full name', required: true, half: true },
     { name: 'staffId', label: 'Staff ID', required: true, half: true },
+    { name: 'phone', label: 'Phone', half: true },
     { name: 'nationality', label: 'Nationality', half: true },
     { name: 'dob', label: 'Date of birth', type: 'date', half: true },
     { name: 'bloodGroup', label: 'Blood group', half: true },

@@ -2,17 +2,19 @@ import { useState } from 'react';
 import { titleCase } from '../lib/text';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Box, Card, CardContent, Typography, LinearProgress, Chip, Stack, Divider,
-  ToggleButton, ToggleButtonGroup, Button, Alert,
+  Box, Card, CardContent, Typography, LinearProgress, Chip, Stack, Button, Alert,
 } from '@mui/material';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import { api } from '../api/client';
 import { PageHeader } from '../components/ui';
 import { fmtDate, fmtKm } from '../i18n';
 import { useAuth } from '../auth/AuthContext';
+import RouteProgress, { RouteWithStops } from '../components/RouteProgress';
 
-interface Staff { employeeId: string; name: string; pickupPoint: string | null; status: string | null }
-interface RouteT { id: string; code: string; name: string; scheduledTime: string | null; staff: Staff[] }
+interface Allocation {
+  id: string; type: string; status: string; date: string;
+  startTime: string | null; endTime: string | null; destination: string | null;
+}
 interface PastTrip {
   id: string; type: string; status: string; date: string;
   startTime: string | null; endTime: string | null;
@@ -24,6 +26,21 @@ const TRIP_TYPE_LABEL: Record<string, string> = {
   customer_delivery: 'Customer delivery', store_delivery: 'Store delivery', staff_transport: 'Staff pick & drop',
 };
 const fmtTime = (d: string | null) => (d ? new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null);
+
+function TripRow({ trip }: { trip: Allocation }) {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5 }}>
+      <Box>
+        <Typography variant="body2">
+          {TRIP_TYPE_LABEL[trip.type] ?? titleCase(trip.type)}
+          {trip.startTime ? ` · ${trip.startTime}` : ''}
+        </Typography>
+        <Typography variant="caption" color="text.secondary">{fmtDate(trip.date)} · {trip.destination ?? '—'}</Typography>
+      </Box>
+      <Chip size="small" color={trip.status === 'active' ? 'info' : 'default'} label={titleCase(trip.status)} />
+    </Box>
+  );
+}
 
 function PastTripCard({ trip }: { trip: PastTrip }) {
   const started = fmtTime(trip.tripStartAt);
@@ -58,37 +75,46 @@ export default function DriverScreen() {
     queryFn: async () => (await api.get('/dashboard/driver')).data,
     enabled: isDriver,
   });
+  const [markingRoute, setMarkingRoute] = useState<string | null>(null);
+  const [markingPoint, setMarkingPoint] = useState<string | null>(null);
+
+  const markReached = useMutation({
+    mutationFn: async ({ routeId, pickupPoint }: { routeId: string; pickupPoint: string }) => {
+      setMarkingRoute(routeId);
+      setMarkingPoint(pickupPoint);
+      return (await api.post('/roster/reached', { routeId, pickupPoint })).data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['driver-screen'] }),
+    onSettled: () => { setMarkingRoute(null); setMarkingPoint(null); },
+  });
+  const completeRoute = useMutation({
+    mutationFn: async (routeId: string) => (await api.post(`/roster/routes/${routeId}/complete`, {})).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['driver-screen'] }),
+  });
 
   // This screen is the driver's personal mobile view; nothing to show for other roles.
   if (!isDriver) {
     return (
-      <Box sx={{ maxWidth: 640, mx: 'auto' }}>
+      <Box sx={{ maxWidth: 480, mx: 'auto' }}>
         <PageHeader title="My Vehicle" subtitle="Driver mobile screen" />
         <Alert severity="info">
-          This screen is for drivers — it shows a driver's own assigned vehicle, documents and route staff.
+          This screen is for drivers — it shows a driver's own assigned vehicle, documents and route progress.
           Sign in with a driver account (e.g. <strong>driver@fleet.local</strong>) to use it.
         </Alert>
       </Box>
     );
   }
-  const [marks, setMarks] = useState<Record<string, 'present' | 'absent'>>({});
-
-  const save = useMutation({
-    mutationFn: async (route: RouteT) => {
-      const routeMarks = route.staff
-        .map((s) => ({ employeeId: s.employeeId, status: marks[s.employeeId] ?? (s.status as 'present' | 'absent' | null) }))
-        .filter((m) => m.status) as { employeeId: string; status: 'present' | 'absent' }[];
-      return (await api.post('/attendance/mark', { routeId: route.id, date: new Date().toISOString(), marks: routeMarks })).data;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['driver-screen'] }),
-  });
 
   if (isLoading || !data) return <LinearProgress />;
   const v = data.vehicle;
+  const allocations = (data.allocations ?? []) as Allocation[];
+  const ongoing = allocations.filter((a) => a.status === 'active');
+  const upcoming = allocations.filter((a) => a.status === 'planned');
+  const routes = (data.routes ?? []) as RouteWithStops[];
 
   return (
-    <Box sx={{ maxWidth: 640, mx: 'auto' }}>
-      <PageHeader title="My Vehicle" subtitle="Today's assignment and staff" />
+    <Box>
+      <PageHeader title="My Vehicle" subtitle="Today's assignment and route" />
 
       {v ? (
         <Card sx={{ mb: 2 }}>
@@ -108,27 +134,55 @@ export default function DriverScreen() {
         <Alert severity="info" sx={{ mb: 2 }}>No vehicle currently assigned to you.</Alert>
       )}
 
-      {(data.allocations ?? []).length > 0 && (
+      {ongoing.length > 0 && (
         <>
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>My allocations today</Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Ongoing trip</Typography>
           <Card sx={{ mb: 2 }}>
             <CardContent>
-              <Stack spacing={1}>
-                {(data.allocations as { id: string; type: string; status: string; startTime: string | null; destination: string | null }[]).map((a) => (
-                  <Box key={a.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Box>
-                      <Typography variant="body2">
-                        {a.type === 'customer_delivery' ? 'Customer delivery' : a.type === 'store_delivery' ? 'Store delivery' : 'Staff pick & drop'}
-                        {a.startTime ? ` · ${a.startTime}` : ''}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">{a.destination ?? '—'}</Typography>
-                    </Box>
-                    <Chip size="small" color={a.status === 'active' ? 'info' : 'default'} label={a.status} />
-                  </Box>
-                ))}
+              <Stack divider={<Box sx={{ borderBottom: '1px solid #eee' }} />}>
+                {ongoing.map((a) => <TripRow key={a.id} trip={a} />)}
               </Stack>
             </CardContent>
           </Card>
+        </>
+      )}
+
+      {upcoming.length > 0 && (
+        <>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Upcoming trips</Typography>
+          <Card sx={{ mb: 2 }}>
+            <CardContent>
+              <Stack divider={<Box sx={{ borderBottom: '1px solid #eee' }} />}>
+                {upcoming.map((a) => <TripRow key={a.id} trip={a} />)}
+              </Stack>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {routes.length > 0 && (
+        <>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>My route today</Typography>
+          {routes.map((route) => {
+            const allReached = route.stops.length > 0 && route.stops.every((s) => s.employees.every((e) => !!e.reachedAt));
+            return (
+              <Card key={route.id} sx={{ mb: 2 }}>
+                <CardContent>
+                  <RouteProgress
+                    route={route}
+                    mode="driver"
+                    onMarkReached={(pickupPoint) => markReached.mutate({ routeId: route.id, pickupPoint })}
+                    markingPoint={markingRoute === route.id ? markingPoint : null}
+                  />
+                  <Button sx={{ mt: 2 }} variant="contained" fullWidth color="secondary"
+                    disabled={!allReached || completeRoute.isPending}
+                    onClick={() => completeRoute.mutate(route.id)}>
+                    {completeRoute.isPending ? 'Completing…' : 'Complete route / final drop-off'}
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
         </>
       )}
 
@@ -160,44 +214,6 @@ export default function DriverScreen() {
           )}
         </CardContent>
       </Card>
-
-      <Typography variant="subtitle2" sx={{ mb: 1 }}>Staff on my routes today — mark attendance</Typography>
-      {(data.routes as RouteT[]).map((route) => (
-        <Card key={route.id} sx={{ mb: 2 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="subtitle1">{route.code} · {route.name}</Typography>
-              {route.scheduledTime && <Chip size="small" label={route.scheduledTime} />}
-            </Box>
-            <Divider sx={{ mb: 1 }} />
-            <Stack spacing={1}>
-              {route.staff.map((s) => {
-                const current = marks[s.employeeId] ?? s.status;
-                return (
-                  <Box key={s.employeeId} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                    <Box>
-                      <Typography variant="body2">{s.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">{s.pickupPoint ?? '—'}</Typography>
-                    </Box>
-                    <ToggleButtonGroup size="small" exclusive value={current}
-                      onChange={(_, val) => val && setMarks((m) => ({ ...m, [s.employeeId]: val }))}>
-                      <ToggleButton value="present" color="success">Present</ToggleButton>
-                      <ToggleButton value="absent" color="error">Absent</ToggleButton>
-                    </ToggleButtonGroup>
-                  </Box>
-                );
-              })}
-              {route.staff.length === 0 && <Typography variant="body2" color="text.secondary">No staff mapped.</Typography>}
-            </Stack>
-            {route.staff.length > 0 && (
-              <Button sx={{ mt: 2 }} variant="contained" fullWidth onClick={() => save.mutate(route)} disabled={save.isPending}>
-                Save attendance
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ))}
-      {save.isSuccess && <Alert severity="success">Attendance saved (marked by driver).</Alert>}
     </Box>
   );
 }

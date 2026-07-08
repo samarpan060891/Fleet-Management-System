@@ -7,6 +7,7 @@ export interface AuthUser {
   fullName: string;
   role: string;
   driverId?: string | null;
+  employeeId?: string | null;
   permissions: string[];
 }
 
@@ -14,6 +15,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginStaff: (staffId: string, pin: string) => Promise<void>;
   logout: () => void;
   can: (perm: string) => boolean;
 }
@@ -41,6 +43,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.data.user);
   };
 
+  const loginStaff = async (staffId: string, pin: string) => {
+    const res = await api.post('/auth/staff-login', { staffId, pin });
+    localStorage.setItem('fleet_token', res.data.token);
+    setUser(res.data.user);
+  };
+
   const logout = () => {
     localStorage.removeItem('fleet_token');
     setUser(null);
@@ -50,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const can = (perm: string) => !!user?.permissions.includes(perm);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, can }}>
+    <AuthContext.Provider value={{ user, loading, login, loginStaff, logout, can }}>
       {children}
     </AuthContext.Provider>
   );

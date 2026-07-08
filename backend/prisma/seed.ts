@@ -152,6 +152,7 @@ async function main() {
       data: {
         fullName: driverNames[i],
         staffId: `EMP${2000 + i}`,
+        phone: `+9715${1000000 + i}`,
         nationality: ['Indian', 'Pakistani', 'Egyptian'][i % 3],
         joiningDate: daysAgo(500 + i * 20),
         licenceNumber: `DL${50000 + i}`,
@@ -276,8 +277,15 @@ async function main() {
   const routeB = await prisma.route.create({ data: { code: 'R-B1', name: 'Mussafah → AUH Store', direction: 'Camp → Store', scheduledTime: '06:00', vehicleId: vehicles[5].id, driverId: drivers[5].id } });
   const routeC = await prisma.route.create({ data: { code: 'R-C1', name: 'Sonapur → Deira', direction: 'Camp → Store', scheduledTime: '07:00' } }); // unassigned → alert
 
-  for (let i = 0; i < 5; i++) await prisma.routeEmployee.create({ data: { routeId: routeA.id, employeeId: employees[i].id, effectiveFrom: daysAgo(90) } });
-  for (let i = 5; i < 9; i++) await prisma.routeEmployee.create({ data: { routeId: routeB.id, employeeId: employees[i].id, effectiveFrom: daysAgo(90) } });
+  for (let i = 0; i < 5; i++) await prisma.routeEmployee.create({ data: { routeId: routeA.id, employeeId: employees[i].id, sequence: 1 + (i % 3), effectiveFrom: daysAgo(90) } });
+  for (let i = 5; i < 9; i++) await prisma.routeEmployee.create({ data: { routeId: routeB.id, employeeId: employees[i].id, sequence: 1 + (i % 3), effectiveFrom: daysAgo(90) } });
+
+  // Staff mobile-login demo account: Worker 1 (staff ID LAB3000), PIN 1234.
+  await prisma.user.upsert({
+    where: { email: 'staff-lab3000@staff.internal' },
+    create: { email: 'staff-lab3000@staff.internal', fullName: employees[0].name, role: 'STAFF', passwordHash: await hash('1234'), employeeId: employees[0].id },
+    update: { employeeId: employees[0].id },
+  });
 
   // Attendance for last 5 days on route A.
   for (let d = 1; d <= 5; d++) {

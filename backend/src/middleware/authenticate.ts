@@ -16,6 +16,7 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
       email: payload.email,
       role: payload.role,
       driverId: payload.driverId ?? null,
+      employeeId: payload.employeeId ?? null,
     };
     next();
   } catch {

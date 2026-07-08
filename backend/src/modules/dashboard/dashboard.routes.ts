@@ -7,6 +7,7 @@ import { computeFleetAssets, computeFleetCostPerKm, resolvePeriod } from '../cos
 import { computeCalendarYearCostTrends, computeCostSummary, computeCostTrends, computeDowntimePct, computeFleetProfile } from './dashboard.analytics';
 import { Forbidden } from '../../lib/errors';
 import { utcToday } from '../../lib/dateOnly';
+import { buildRouteWithStops } from '../roster/roster.service';
 
 export const dashboardRouter = Router();
 
@@ -117,27 +118,23 @@ dashboardRouter.get(
     });
     const docs = await prisma.complianceDocument.findMany({ where: { isActive: true, driverId } });
 
-    // Routes for the driver's vehicle + today's roster.
-    const routes = assignment?.vehicleId
-      ? await prisma.route.findMany({
-          where: { isActive: true, vehicleId: assignment.vehicleId },
-          include: { employees: { where: { isActive: true }, include: { employee: true } } },
-        })
+    // Routes for the driver's vehicle, with today's stop-by-stop progress.
+    const routeIds = assignment?.vehicleId
+      ? (await prisma.route.findMany({ where: { isActive: true, vehicleId: assignment.vehicleId }, select: { id: true } })).map((r) => r.id)
       : [];
-
     const today = utcToday();
-    const attendance = await prisma.attendance.findMany({
-      where: { routeId: { in: routes.map((r) => r.id) }, date: today },
-    });
+    const routes = (await Promise.all(routeIds.map((id) => buildRouteWithStops(id, today)))).filter((r): r is NonNullable<typeof r> => !!r);
 
-    // Today's allocations for this driver (or their vehicle).
+    // Ongoing (active) and upcoming (planned, today or later) trips for this
+    // driver or their vehicle.
     const allocations = await prisma.fleetAllocation.findMany({
       where: {
-        isActive: true, date: today, status: { in: ['planned', 'active'] },
+        isActive: true, date: { gte: today }, status: { in: ['planned', 'active'] },
         OR: [{ driverId }, ...(assignment?.vehicleId ? [{ vehicleId: assignment.vehicleId }] : [])],
       },
       include: { store: { select: { code: true, name: true } }, route: { select: { code: true, name: true } } },
-      orderBy: { startTime: 'asc' },
+      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+      take: 15,
     });
 
     // Past trips — completed/cancelled allocations before today, most recent
@@ -167,7 +164,7 @@ dashboardRouter.get(
         : null,
       myDocuments: docs,
       allocations: allocations.map((a) => ({
-        id: a.id, type: a.type, status: a.status, startTime: a.startTime, endTime: a.endTime,
+        id: a.id, type: a.type, status: a.status, date: a.date, startTime: a.startTime, endTime: a.endTime,
         destination: a.type === 'store_delivery' ? (a.store ? `${a.store.code} · ${a.store.name}` : null)
           : a.type === 'staff_transport' ? (a.route ? `${a.route.code} · ${a.route.name}` : null)
           : [a.reference, a.area, a.emirate].filter(Boolean).join(' · ') || null,
@@ -180,18 +177,29 @@ dashboardRouter.get(
           : a.type === 'staff_transport' ? (a.route ? `${a.route.code} · ${a.route.name}` : null)
           : [a.reference, a.area, a.emirate].filter(Boolean).join(' · ') || null,
       })),
-      routes: routes.map((r) => ({
-        id: r.id,
-        code: r.code,
-        name: r.name,
-        scheduledTime: r.scheduledTime,
-        staff: r.employees.map((e) => ({
-          employeeId: e.employeeId,
-          name: e.employee.name,
-          pickupPoint: e.pickupPoint ?? e.employee.pickupPoint,
-          status: attendance.find((a) => a.employeeId === e.employeeId)?.status ?? null,
-        })),
-      })),
+      routes,
     });
+  })
+);
+
+// Staff mobile screen: which route/vehicle/driver, route progress, and the
+// employee's own roster — nothing else (no other staff, no fleet data).
+dashboardRouter.get(
+  '/staff',
+  authorize('dashboard', 'read'),
+  asyncHandler(async (req, res) => {
+    if (req.user!.role !== 'STAFF' || !req.user!.employeeId) throw Forbidden('Staff screen is for staff');
+    const employeeId = req.user!.employeeId;
+
+    const today = utcToday();
+    const mappings = await prisma.routeEmployee.findMany({
+      where: { employeeId, isActive: true, effectiveTo: null },
+      include: { route: { select: { id: true, code: true, name: true, scheduledTime: true, isActive: true } } },
+    });
+    const routes = (
+      await Promise.all(mappings.filter((m) => m.route.isActive).map((m) => buildRouteWithStops(m.route.id, today)))
+    ).filter((r): r is NonNullable<typeof r> => !!r);
+
+    res.json({ employeeId, routes });
   })
 );

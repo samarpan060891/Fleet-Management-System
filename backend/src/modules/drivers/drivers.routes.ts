@@ -15,6 +15,7 @@ const dateOpt = z.string().optional();
 const createSchema = z.object({
   fullName: z.string().min(1),
   staffId: z.string().min(1),
+  phone: z.string().optional(),
   dob: dateOpt,
   bloodGroup: z.string().optional(),
   nationality: z.string().optional(),

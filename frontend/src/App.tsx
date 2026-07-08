@@ -20,6 +20,7 @@ import Reports from './pages/Reports';
 import AuditLog from './pages/AuditLog';
 import Settings from './pages/Settings';
 import DriverScreen from './pages/DriverScreen';
+import StaffScreen from './pages/StaffScreen';
 import Vendors from './pages/Vendors';
 import Stores from './pages/Stores';
 import Employees from './pages/Employees';
@@ -49,20 +50,22 @@ export default function App() {
     );
   }
 
-  // Drivers land on their mobile screen by default.
-  const home = user.role === 'DRIVER' ? '/my-vehicle' : '/';
+  // Drivers and staff land on their own single mobile screen by default.
+  const home = user.role === 'DRIVER' ? '/my-vehicle' : user.role === 'STAFF' ? '/my-roster' : '/';
 
-  // Drivers get a completely separate, single-screen shell: no fleet-wide
-  // pages are even routable for them, so there's no way to reach another
-  // driver's or the whole fleet's data by navigating directly to a URL.
-  if (user.role === 'DRIVER') {
+  // Drivers and staff get a completely separate, single-screen shell: no
+  // fleet-wide pages are even routable for them, so there's no way to reach
+  // another driver's/employee's or the whole fleet's data by navigating
+  // directly to a URL.
+  if (user.role === 'DRIVER' || user.role === 'STAFF') {
     return (
       <Routes>
         <Route path="/login" element={<Navigate to={home} replace />} />
         <Route element={<DriverLayout />}>
-          <Route path="/" element={<Navigate to="/my-vehicle" replace />} />
-          <Route path="/my-vehicle" element={<DriverScreen />} />
-          <Route path="*" element={<Navigate to="/my-vehicle" replace />} />
+          <Route path="/" element={<Navigate to={home} replace />} />
+          {user.role === 'DRIVER' && <Route path="/my-vehicle" element={<DriverScreen />} />}
+          {user.role === 'STAFF' && <Route path="/my-roster" element={<StaffScreen />} />}
+          <Route path="*" element={<Navigate to={home} replace />} />
         </Route>
       </Routes>
     );

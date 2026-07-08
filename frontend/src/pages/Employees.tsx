@@ -1,6 +1,11 @@
-import { GridColDef } from '@mui/x-data-grid';
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import CrudListPage from '../components/CrudListPage';
-import { FieldDef } from '../components/FormDialog';
+import FormDialog, { FieldDef } from '../components/FormDialog';
+import { api } from '../api/client';
+import { apiError } from '../hooks/useLookups';
 
 const columns: GridColDef[] = [
   { field: 'name', headerName: 'Name', width: 200 },
@@ -19,5 +24,31 @@ const fields: FieldDef[] = [
 ];
 
 export default function Employees() {
-  return <CrudListPage title="Employees" subtitle="Staff-transport passengers (mapped to routes)" resource="employees" queryKey="employees" permission="employees" columns={columns} fields={fields} importable />;
+  const qc = useQueryClient();
+  const [pinRow, setPinRow] = useState<any | null>(null);
+  const setPin = useMutation({
+    mutationFn: async ({ id, pin }: { id: string; pin: string }) => (await api.post(`/employees/${id}/set-pin`, { pin })).data,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['employees'] }); setPinRow(null); },
+  });
+
+  return (
+    <>
+      <CrudListPage
+        title="Employees" subtitle="Staff-transport passengers (mapped to routes) — set a PIN to enable their mobile roster screen"
+        resource="employees" queryKey="employees" permission="employees" columns={columns} fields={fields} importable
+        extraActions={(row) => [
+          <GridActionsCellItem key="pin" icon={<VpnKeyIcon />} label="Set mobile PIN" showInMenu onClick={() => setPinRow(row)} />,
+        ]}
+      />
+      <FormDialog
+        open={!!pinRow}
+        title={`Set mobile PIN for ${pinRow?.name ?? ''}`}
+        fields={[{ name: 'pin', label: 'PIN (4-6 digits)', required: true, half: true }]}
+        submitting={setPin.isPending}
+        error={setPin.error ? apiError(setPin.error) : null}
+        onClose={() => setPinRow(null)}
+        onSubmit={(v) => setPin.mutate({ id: pinRow.id, pin: String(v.pin) })}
+      />
+    </>
+  );
 }

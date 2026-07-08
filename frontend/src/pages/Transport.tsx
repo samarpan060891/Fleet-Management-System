@@ -95,6 +95,7 @@ export default function Transport() {
         fields={[
           { name: 'employeeId', label: 'Employee', type: 'select', required: true, options: employeeOptions },
           { name: 'pickupPoint', label: 'Pickup point (optional override)', half: true },
+          { name: 'sequence', label: 'Stop order (1, 2, 3…) — for the route progress screen', type: 'number', half: true },
           { name: 'effectiveFrom', label: 'Effective from', type: 'date', required: true, half: true },
         ]}
         submitting={staffMut.isPending} error={staffMut.error ? apiError(staffMut.error) : null}
