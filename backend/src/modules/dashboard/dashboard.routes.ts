@@ -4,7 +4,7 @@ import { prisma } from '../../lib/prisma';
 import { authorize } from '../../middleware/authorize';
 import { asyncHandler } from '../../middleware/errorHandler';
 import { computeFleetAssets, computeFleetCostPerKm, resolvePeriod } from '../costs/costs.service';
-import { computeCalendarYearCostTrends, computeCostTrends, computeFleetProfile } from './dashboard.analytics';
+import { computeCalendarYearCostTrends, computeCostSummary, computeCostTrends, computeDowntimePct, computeFleetProfile } from './dashboard.analytics';
 import { Forbidden } from '../../lib/errors';
 import { utcToday } from '../../lib/dateOnly';
 
@@ -17,23 +17,22 @@ dashboardRouter.get(
   asyncHandler(async (req, res) => {
     const now = new Date();
     const { from, to } = resolvePeriod({ period: 'mtd' });
+    const ytd = resolvePeriod({ period: 'ytd' });
 
-    const [statusCounts, alertSeverity, expiringSoon, pmDue, fuelMtd, maintMtd, finesMtd] =
+    const [statusCounts, alertSeverity, expiringSoon, pmDue, costMtd, costYtd, downtimeMtd, downtimeYtd] =
       await Promise.all([
         prisma.vehicle.groupBy({ by: ['status'], where: { isActive: true }, _count: true }),
         prisma.alert.groupBy({ by: ['severity'], where: { resolved: false }, _count: true }),
         prisma.complianceDocument.count({ where: { isActive: true, expiryDate: { gte: now, lte: dayjs(now).add(30, 'day').toDate() } } }),
         prisma.pmState.count({ where: { nextPmDate: { lte: dayjs(now).add(15, 'day').toDate() } } }),
-        prisma.fuelTransaction.aggregate({ where: { isActive: true, filledAt: { gte: from, lte: to } }, _sum: { amount: true } }),
-        prisma.jobCard.aggregate({ where: { isActive: true, dateIn: { gte: from, lte: to } }, _sum: { totalCost: true } }),
-        prisma.fine.aggregate({ where: { isActive: true, offenceAt: { gte: from, lte: to } }, _sum: { amount: true } }),
+        computeCostSummary(from, to),
+        computeCostSummary(ytd.from, ytd.to),
+        computeDowntimePct(from, to),
+        computeDowntimePct(ytd.from, ytd.to),
       ]);
 
     const availability: Record<string, number> = {};
     for (const s of statusCounts) availability[s.status] = s._count;
-
-    const mtdCost =
-      Number(fuelMtd._sum.amount ?? 0) + Number(maintMtd._sum.totalCost ?? 0) + Number(finesMtd._sum.amount ?? 0);
 
     // --- Today's allocations + utilization ---
     const todayStart = utcToday();
@@ -57,12 +56,8 @@ dashboardRouter.get(
       alertsBySeverity: alertSeverity,
       complianceExpiring30d: expiringSoon,
       pmDue,
-      mtdCost: +mtdCost.toFixed(2),
-      mtdBreakdown: {
-        fuel: Number(fuelMtd._sum.amount ?? 0),
-        maintenance: Number(maintMtd._sum.totalCost ?? 0),
-        fines: Number(finesMtd._sum.amount ?? 0),
-      },
+      cost: { mtd: costMtd, ytd: costYtd },
+      downtime: { mtd: downtimeMtd, ytd: downtimeYtd },
       allocationsToday: allocByType.map((a) => ({ type: a.type, count: a._count })),
       utilization: {
         fleetPct: fleetUtilization, driverPct: driverUtilization,

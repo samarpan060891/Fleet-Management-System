@@ -3,6 +3,7 @@ import { Grid, Card, CardContent, Typography, Box, LinearProgress, Chip, Stack, 
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import SpeedIcon from '@mui/icons-material/Speed';
+import BuildIcon from '@mui/icons-material/Build';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { api } from '../api/client';
 import { PageHeader, StatCard } from '../components/ui';
@@ -114,6 +115,9 @@ export default function Dashboard() {
   const age = data.fleetAge;
   const exp = data.experience;
   const cpk = data.costPerKm;
+  type CostSummary = { fuel: number; maintenance: number; fines: number; total: number };
+  const cost = data.cost as { mtd: CostSummary; ytd: CostSummary };
+  const downtime = data.downtime as { mtd: { pct: number }; ytd: { pct: number } };
 
   // Fiscal year = calendar year (Jan-Dec). `current`/`previous` are each
   // exactly 12 months, Jan through Dec, so trend/YoY charts never straddle
@@ -150,7 +154,18 @@ export default function Dashboard() {
           <Grid item xs={6} md={2.4}><StatCard label="Active vehicles" value={availability.active ?? 0} color="#2e7d32" /></Grid>
           <Grid item xs={6} md={2.4}><StatCard label="In workshop / Vehicle Off Road (VOR)" value={(availability.in_workshop ?? 0) + (availability.vor ?? 0)} color="#ed9c28" /></Grid>
           <Grid item xs={6} md={2.4}><StatCard label="Compliance due (30d)" value={data.complianceExpiring30d} color="#c62828" /></Grid>
-          <Grid item xs={6} md={2.4}><StatCard label="MTD cost" value={fmtCurrency(data.mtdCost)} sub="fuel + maintenance + fines" /></Grid>
+          <Grid item xs={12} md={2.4}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                  <BuildIcon fontSize="small" color="action" />
+                  <Typography variant="body2" color="text.secondary">Downtime %</Typography>
+                </Stack>
+                <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2 }}>{downtime.mtd.pct}%</Typography>
+                <Typography variant="caption" color="text.secondary">MTD · YTD {downtime.ytd.pct}%</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
           <Grid item xs={12} md={2.4}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
@@ -229,6 +244,30 @@ export default function Dashboard() {
 
       {/* ---------- Cost Trends ---------- */}
       <Section title="Cost Trends" subtitle={`Financial year ${fyYear}: January – December`}>
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          <Grid item xs={12} md={6}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>Total cost · MTD</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2 }}>{fmtCurrency(cost.mtd.total)}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Fuel {fmtCurrency(cost.mtd.fuel)} · Maintenance {fmtCurrency(cost.mtd.maintenance)} · Fines {fmtCurrency(cost.mtd.fines)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary" gutterBottom>Total cost · YTD</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2 }}>{fmtCurrency(cost.ytd.total)}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Fuel {fmtCurrency(cost.ytd.fuel)} · Maintenance {fmtCurrency(cost.ytd.maintenance)} · Fines {fmtCurrency(cost.ytd.fines)}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
         {curFy && (
           <Grid container spacing={2} sx={{ mb: 2 }}>
             <Grid item xs={12} md={4}><CostCard label="Fuel cost" value={curFy.fuel} dMonth={pct(curFy.fuel, prevFyMonth?.fuel)} dYear={pct(fyTotal.fuel, prevFyTotal.fuel)} /></Grid>

@@ -57,6 +57,68 @@ export async function computeFleetProfile() {
   };
 }
 
+export interface CostSummary {
+  fuel: number;
+  maintenance: number;
+  fines: number;
+  total: number;
+}
+
+// Fuel + maintenance (job card) + fines cost over an arbitrary period —
+// shared by the MTD and YTD cost cards on the cockpit.
+export async function computeCostSummary(from: Date, to: Date): Promise<CostSummary> {
+  const [fuel, maint, fines] = await Promise.all([
+    prisma.fuelTransaction.aggregate({ where: { isActive: true, filledAt: { gte: from, lte: to } }, _sum: { amount: true } }),
+    prisma.jobCard.aggregate({ where: { isActive: true, dateIn: { gte: from, lte: to } }, _sum: { totalCost: true } }),
+    prisma.fine.aggregate({ where: { isActive: true, offenceAt: { gte: from, lte: to } }, _sum: { amount: true } }),
+  ]);
+  const fuelAmt = Number(fuel._sum.amount ?? 0);
+  const maintAmt = Number(maint._sum.totalCost ?? 0);
+  const finesAmt = Number(fines._sum.amount ?? 0);
+  return {
+    fuel: +fuelAmt.toFixed(2),
+    maintenance: +maintAmt.toFixed(2),
+    fines: +finesAmt.toFixed(2),
+    total: +(fuelAmt + maintAmt + finesAmt).toFixed(2),
+  };
+}
+
+export interface DowntimeStat {
+  pct: number;
+  downDays: number;
+  vehicleDays: number;
+}
+
+// Fleet-wide downtime % over a period: each job card's in-workshop span
+// (dateIn → dateOut, or → now if still open) clipped to the period, summed
+// across all vehicles, divided by (active vehicles × period days). This is
+// the same "days in workshop" signal the VOR alert threshold uses, just
+// aggregated fleet-wide instead of per-vehicle.
+export async function computeDowntimePct(from: Date, to: Date): Promise<DowntimeStat> {
+  const now = new Date();
+  const periodEnd = to.getTime() < now.getTime() ? to : now;
+  const [activeVehicles, jobCards] = await Promise.all([
+    prisma.vehicle.count({ where: { isActive: true, status: { not: 'disposed' } } }),
+    prisma.jobCard.findMany({
+      where: { isActive: true, dateIn: { lte: periodEnd }, OR: [{ dateOut: null }, { dateOut: { gte: from } }] },
+      select: { dateIn: true, dateOut: true },
+    }),
+  ]);
+
+  const fromMs = from.getTime();
+  const toMs = periodEnd.getTime();
+  let downDays = 0;
+  for (const j of jobCards) {
+    const startMs = Math.max(j.dateIn.getTime(), fromMs);
+    const endMs = Math.min((j.dateOut ?? now).getTime(), toMs);
+    downDays += Math.max(0, (endMs - startMs) / 86400000);
+  }
+  const periodDays = Math.max(1, (toMs - fromMs) / 86400000);
+  const vehicleDays = activeVehicles * periodDays;
+  const pct = vehicleDays > 0 ? (downDays / vehicleDays) * 100 : 0;
+  return { pct: +pct.toFixed(1), downDays: Math.round(downDays), vehicleDays: Math.round(vehicleDays) };
+}
+
 export interface MonthCost {
   month: string; // YYYY-MM
   fuel: number;
