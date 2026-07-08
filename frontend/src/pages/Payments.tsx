@@ -10,6 +10,7 @@ import FormDialog, { FieldDef } from '../components/FormDialog';
 import { fmtCurrency, fmtDate } from '../i18n';
 import { useAuth } from '../auth/AuthContext';
 import { useLookups, apiError } from '../hooks/useLookups';
+import { titleCase } from '../lib/text';
 
 const CATEGORY = ['maintenance', 'tyre', 'insurance', 'permit', 'branding', 'salik', 'other'];
 const STATUS_COLOR: Record<string, 'error' | 'warning' | 'success'> = { unpaid: 'error', partial: 'warning', paid: 'success' };
@@ -30,7 +31,7 @@ export default function Payments() {
 
   const fields: FieldDef[] = [
     { name: 'vendorId', label: 'Vendor / garage', type: 'select', required: true, half: true, options: vendorOptions },
-    { name: 'category', label: 'Category', type: 'select', required: true, half: true, options: CATEGORY.map((c) => ({ value: c, label: c })) },
+    { name: 'category', label: 'Category', type: 'select', required: true, half: true, optionListKey: 'payments.category', options: CATEGORY.map((c) => ({ value: c, label: titleCase(c) })) },
     { name: 'vehicleId', label: 'Vehicle (optional)', type: 'select', half: true, options: vehicleOptions },
     { name: 'invoiceNumber', label: 'Invoice number', half: true },
     { name: 'invoiceDate', label: 'Invoice date', type: 'date', required: true, half: true },
@@ -41,7 +42,7 @@ export default function Payments() {
 
   const columns: GridColDef[] = [
     { field: 'vendor', headerName: 'Vendor', width: 180, valueGetter: (_v, r) => r.vendor?.name ?? '—' },
-    { field: 'category', headerName: 'Category', width: 120, renderCell: (p) => <Chip size="small" variant="outlined" label={p.value as string} /> },
+    { field: 'category', headerName: 'Category', width: 120, renderCell: (p) => <Chip size="small" variant="outlined" label={titleCase(p.value as string)} /> },
     { field: 'vehicle', headerName: 'Vehicle', width: 130, valueGetter: (_v, r) => r.vehicle?.plateNumber ?? '—' },
     { field: 'invoiceNumber', headerName: 'Invoice #', width: 120 },
     { field: 'amount', headerName: 'Amount', width: 120, valueFormatter: (v) => fmtCurrency(v as number) },

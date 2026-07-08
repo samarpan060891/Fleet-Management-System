@@ -7,6 +7,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend, Responsi
 import { api } from '../api/client';
 import { PageHeader, StatCard } from '../components/ui';
 import { fmtCurrency } from '../i18n';
+import { titleCase } from '../lib/text';
 
 const SEV_COLORS: Record<string, string> = { red: '#c62828', amber: '#ed9c28', green: '#2e7d32' };
 const STATUS_COLORS: Record<string, string> = { active: '#2e7d32', in_workshop: '#ed9c28', vor: '#c62828', idle: '#90a4ae', disposed: '#546e7a' };
@@ -105,7 +106,7 @@ export default function Dashboard() {
   if (isLoading || !data) return <LinearProgress />;
 
   const availability = data.availability as Record<string, number>;
-  const statusData = Object.entries(availability).map(([k, v]) => ({ name: k.replace(/_/g, ' '), value: v, key: k }));
+  const statusData = Object.entries(availability).map(([k, v]) => ({ name: titleCase(k), value: v, key: k }));
   const sev = (data.alertsBySeverity as { severity: string; _count: number }[]) || [];
   const alloc = (data.allocationsToday as { type: string; count: number }[]) || [];
   const u = data.utilization;

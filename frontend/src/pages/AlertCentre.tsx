@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { titleCase } from '../lib/text';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Box, Card, CardContent, Typography, LinearProgress, Button, ToggleButtonGroup, ToggleButton, Stack, IconButton, Tooltip } from '@mui/material';
 import DoneIcon from '@mui/icons-material/Done';
@@ -61,7 +62,7 @@ export default function AlertCentre() {
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 0.5, flexWrap: 'wrap' }}>
                     <SeverityChip severity={a.severity} />
                     <Typography variant="subtitle2">{a.title}</Typography>
-                    <Typography variant="caption" color="text.secondary">· {a.category.replace(/_/g, ' ')}</Typography>
+                    <Typography variant="caption" color="text.secondary">· {titleCase(a.category)}</Typography>
                     {a.dueDate && <Typography variant="caption" color="text.secondary">· due {fmtDate(a.dueDate)}</Typography>}
                   </Box>
                   <Typography variant="body2" color="text.secondary">{a.message}</Typography>

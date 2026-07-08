@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { titleCase } from '../lib/text';
 import { Box, Card, CardContent, Chip, Typography } from '@mui/material';
 
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
@@ -43,5 +44,5 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function StatusChip({ status }: { status: string }) {
-  return <Chip size="small" color={STATUS_COLOR[status] ?? 'default'} label={STATUS_LABEL[status] ?? status.replace(/_/g, ' ')} variant="outlined" />;
+  return <Chip size="small" color={STATUS_COLOR[status] ?? 'default'} label={STATUS_LABEL[status] ?? titleCase(status)} variant="outlined" />;
 }

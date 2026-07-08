@@ -14,6 +14,7 @@ import { fmtKm, fmtCurrency, fmtDate } from '../i18n';
 import { useLookups, apiError } from '../hooks/useLookups';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { titleCase } from '../lib/text';
 
 const TYPES = ['light', 'sedan', 'pickup', 'truck_3_7t', 'bus', 'van'];
 const OWNERSHIP = ['owned', 'leased', 'rented'];
@@ -21,7 +22,7 @@ const OWNERSHIP = ['owned', 'leased', 'rented'];
 const activeColumns: GridColDef[] = [
   { field: 'plateNumber', headerName: 'Plate', width: 130, valueGetter: (_v, r) => `${r.plateNumber} (${r.plateEmirate})` },
   { field: 'make', headerName: 'Make/Model', width: 160, valueGetter: (_v, r) => `${r.make} ${r.model} ${r.year}` },
-  { field: 'vehicleType', headerName: 'Type', width: 100, renderCell: (p) => <Chip size="small" label={String(p.value).replace(/_/g, ' ')} variant="outlined" /> },
+  { field: 'vehicleType', headerName: 'Type', width: 100, renderCell: (p) => <Chip size="small" label={titleCase(String(p.value))} variant="outlined" /> },
   { field: 'currentOdometer', headerName: 'Odometer', width: 110, valueFormatter: (v) => fmtKm(v as number) },
   { field: 'hasBranding', headerName: 'Branding', width: 100, renderCell: (p) => p.value ? <Chip size="small" color="secondary" label="Branded" /> : '—' },
   { field: 'assignedDriver', headerName: 'Committed to', width: 140, valueGetter: (_v, r) => r.assignments?.[0]?.driver?.fullName ?? '— (free)' },
@@ -32,7 +33,7 @@ const disposedColumns: GridColDef[] = [
   { field: 'plateNumber', headerName: 'Plate', width: 130, valueGetter: (_v, r) => `${r.plateNumber} (${r.plateEmirate})` },
   { field: 'make', headerName: 'Make/Model', width: 160, valueGetter: (_v, r) => `${r.make} ${r.model} ${r.year}` },
   { field: 'disposalDate', headerName: 'Disposal date', width: 130, valueGetter: (_v, r) => r.disposal?.disposalDate, valueFormatter: (v) => fmtDate(v as string) },
-  { field: 'method', headerName: 'Method', width: 130, valueGetter: (_v, r) => r.disposal?.method, renderCell: (p) => p.value ? <Chip size="small" variant="outlined" label={String(p.value).replace(/_/g, ' ')} /> : '—' },
+  { field: 'method', headerName: 'Method', width: 130, valueGetter: (_v, r) => r.disposal?.method, renderCell: (p) => p.value ? <Chip size="small" variant="outlined" label={titleCase(String(p.value))} /> : '—' },
   { field: 'buyer', headerName: 'Buyer', width: 150, valueGetter: (_v, r) => r.disposal?.buyer ?? '—' },
   { field: 'salePrice', headerName: 'Sale price', width: 120, valueGetter: (_v, r) => r.disposal?.salePrice, valueFormatter: (v) => fmtCurrency(v as number) },
   { field: 'gainLoss', headerName: 'Gain / Loss', width: 120, valueGetter: (_v, r) => r.disposal?.gainLoss, renderCell: (p) => {
@@ -51,7 +52,7 @@ function VehicleCard({ row, onEdit, onDelete, onClick, canUpdate, canDelete }: {
           <Typography variant="h6" sx={{ fontWeight: 700 }}>{row.plateNumber}</Typography>
           <StatusChip status={row.status} />
         </Stack>
-        <Typography variant="body2" color="text.secondary">{row.plateEmirate} · {String(row.vehicleType).replace(/_/g, ' ')}</Typography>
+        <Typography variant="body2" color="text.secondary">{row.plateEmirate} · {titleCase(String(row.vehicleType))}</Typography>
         <Typography variant="body2" sx={{ mt: 0.5 }}>{row.make} {row.model} {row.year}</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{fmtKm(row.currentOdometer)}</Typography>
         <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
@@ -91,7 +92,7 @@ export default function Vehicles() {
     { name: 'plateNumber', label: 'Plate number', required: true, half: true },
     { name: 'plateEmirate', label: 'Plate emirate', required: true, half: true },
     { name: 'plateCategory', label: 'Plate category', half: true },
-    { name: 'vehicleType', label: 'Vehicle type', type: 'select', required: true, half: true, options: TYPES.map((t) => ({ value: t, label: t.replace(/_/g, ' ') })) },
+    { name: 'vehicleType', label: 'Vehicle type', type: 'select', required: true, half: true, optionListKey: 'vehicle.type', options: TYPES.map((t) => ({ value: t, label: titleCase(t) })) },
     { name: 'make', label: 'Make', required: true, half: true },
     { name: 'model', label: 'Model', required: true, half: true },
     { name: 'year', label: 'Year', type: 'number', required: true, half: true },

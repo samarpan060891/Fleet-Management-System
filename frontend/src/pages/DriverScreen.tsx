@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { titleCase } from '../lib/text';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Box, Card, CardContent, Typography, LinearProgress, Chip, Stack, Divider,
@@ -60,7 +61,7 @@ export default function DriverScreen() {
             <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
               <DirectionsCarIcon color="primary" />
               <Typography variant="h6">{v.plate}</Typography>
-              <Chip size="small" label={v.status.replace(/_/g, ' ')} color={v.status === 'active' ? 'success' : 'warning'} />
+              <Chip size="small" label={titleCase(v.status)} color={v.status === 'active' ? 'success' : 'warning'} />
             </Stack>
             <Typography variant="body2" color="text.secondary">Odometer: {fmtKm(v.odometer)}</Typography>
             {v.pmState?.nextPmDate && (
@@ -104,7 +105,7 @@ export default function DriverScreen() {
               const days = Math.round((new Date(d.expiryDate).getTime() - Date.now()) / 86400000);
               return (
                 <Box key={d.id} sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="body2">{d.docType.replace(/_/g, ' ')}</Typography>
+                  <Typography variant="body2">{titleCase(d.docType)}</Typography>
                   <Chip size="small" label={fmtDate(d.expiryDate)} color={days < 0 ? 'error' : days <= 30 ? 'warning' : 'default'} variant="outlined" />
                 </Box>
               );

@@ -4,6 +4,7 @@ import CrudListPage from '../components/CrudListPage';
 import { FieldDef } from '../components/FormDialog';
 import { fmtDate } from '../i18n';
 import { useLookups } from '../hooks/useLookups';
+import { titleCase } from '../lib/text';
 
 const DOC_TYPES = ['mulkiya', 'insurance', 'tasjeel', 'lease', 'warranty', 'permit', 'licence', 'emirates_id', 'visa', 'passport'];
 
@@ -15,7 +16,7 @@ function daysLeft(expiry: string | null): number | null {
 const columns: GridColDef[] = [
   { field: 'entity', headerName: 'Entity', width: 200, valueGetter: (_v, r) => r.vehicle ? `${r.vehicle.plateNumber} (${r.vehicle.plateEmirate})` : r.driver?.fullName ?? '—' },
   { field: 'entityType', headerName: 'Type', width: 90 },
-  { field: 'docType', headerName: 'Document', width: 140, valueFormatter: (v) => String(v).replace(/_/g, ' ') },
+  { field: 'docType', headerName: 'Document', width: 140, valueFormatter: (v) => titleCase(String(v)) },
   { field: 'reference', headerName: 'Reference', width: 130 },
   { field: 'expiryDate', headerName: 'Expiry', width: 120, valueFormatter: (v) => fmtDate(v as string) },
   { field: 'daysLeft', headerName: 'Days Left', width: 130, valueGetter: (_v, r) => daysLeft(r.expiryDate),
@@ -33,7 +34,7 @@ export default function Compliance() {
 
   const fields: FieldDef[] = [
     { name: 'entityType', label: 'Applies to', type: 'select', required: true, half: true, options: [{ value: 'vehicle', label: 'Vehicle' }, { value: 'driver', label: 'Driver' }] },
-    { name: 'docType', label: 'Document type', type: 'select', required: true, half: true, options: DOC_TYPES.map((d) => ({ value: d, label: d.replace(/_/g, ' ') })) },
+    { name: 'docType', label: 'Document type', type: 'select', required: true, half: true, optionListKey: 'compliance.docType', options: DOC_TYPES.map((d) => ({ value: d, label: titleCase(d) })) },
     { name: 'vehicleId', label: 'Vehicle', type: 'select', half: true, options: vehicleOptions, showIf: (v) => v.entityType === 'vehicle' },
     { name: 'driverId', label: 'Driver', type: 'select', half: true, options: driverOptions, showIf: (v) => v.entityType === 'driver' },
     { name: 'reference', label: 'Reference / policy no.', half: true },

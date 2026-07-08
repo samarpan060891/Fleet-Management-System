@@ -974,6 +974,21 @@ model Alert {
   @@map("alerts")
 }
 
+// User-extensible picklist options (e.g. fine type, document type, vehicle
+// type). Each dropdown ships with built-in seed values in the frontend; this
+// table holds additional values users add inline from the "+ Add new" option.
+model OptionListItem {
+  id        String   @id @default(uuid())
+  listKey   String   @map("list_key") // e.g. "fine.type", "vehicles.type"
+  value     String   // stored value, lowercase/underscored
+  label     String   // display label, capitalized
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by")
+
+  @@unique([listKey, value])
+  @@map("option_list_items")
+}
+
 // Key/value settings framework (typed via JSON). Admin-configurable.
 model Setting {
   key       String   @id

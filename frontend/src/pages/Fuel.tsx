@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { titleCase } from '../lib/text';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { Box, Card, CardContent, Typography, Chip, Button, Stack, Alert } from '@mui/material';
@@ -57,7 +58,7 @@ export default function Fuel() {
   const columns: GridColDef[] = [
     { field: 'filledAt', headerName: 'Date', width: 110, valueFormatter: (v) => fmtDate(v as string) },
     { field: 'vehicle', headerName: 'Vehicle', width: 140, valueGetter: (_v, r) => r.vehicle ? `${r.vehicle.plateNumber} (${r.vehicle.plateEmirate})` : '—' },
-    { field: 'channel', headerName: 'Channel', width: 110, renderCell: (p) => <Chip size="small" variant="outlined" label={String(p.value).replace(/_/g, ' ')} /> },
+    { field: 'channel', headerName: 'Channel', width: 110, renderCell: (p) => <Chip size="small" variant="outlined" label={titleCase(String(p.value))} /> },
     { field: 'litres', headerName: 'Litres', width: 90 },
     { field: 'amount', headerName: 'Amount', width: 120, valueFormatter: (v) => fmtCurrency(v as number) },
     { field: 'kmPerLitre', headerName: 'km/L', width: 90, valueGetter: (_v, r) => r.kmPerLitre ?? '—' },

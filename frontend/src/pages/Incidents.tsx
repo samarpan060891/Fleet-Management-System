@@ -1,4 +1,5 @@
 import { GridColDef } from '@mui/x-data-grid';
+import { titleCase } from '../lib/text';
 import { Chip } from '@mui/material';
 import CrudListPage from '../components/CrudListPage';
 import { FieldDef } from '../components/FormDialog';
@@ -16,7 +17,7 @@ const columns: GridColDef[] = [
   { field: 'driver', headerName: 'Driver', width: 150, valueGetter: (_v, r) => r.driver?.fullName ?? '—' },
   { field: 'emirate', headerName: 'Emirate', width: 110 },
   { field: 'description', headerName: 'Description', width: 200 },
-  { field: 'claimStatus', headerName: 'Claim', width: 130, renderCell: (p) => <Chip size="small" color={CLAIM_COLOR[p.value as string]} label={String(p.value).replace(/_/g, ' ')} /> },
+  { field: 'claimStatus', headerName: 'Claim', width: 130, renderCell: (p) => <Chip size="small" color={CLAIM_COLOR[p.value as string]} label={titleCase(String(p.value))} /> },
   { field: 'claimAmount', headerName: 'Claim Amt', width: 120, valueFormatter: (v) => fmtCurrency(v as number) },
 ];
 
@@ -33,7 +34,7 @@ export default function Incidents() {
     { name: 'thirdParty', label: 'Third-party details', half: true },
     { name: 'insuranceVendorId', label: 'Insurance vendor', type: 'select', half: true, options: vendorOptions },
     { name: 'description', label: 'Description', type: 'multiline' },
-    { name: 'claimStatus', label: 'Claim status', type: 'select', half: true, options: CLAIM.map((c) => ({ value: c, label: c.replace(/_/g, ' ') })) },
+    { name: 'claimStatus', label: 'Claim status', type: 'select', half: true, optionListKey: 'incidents.claimStatus', options: CLAIM.map((c) => ({ value: c, label: titleCase(c) })) },
     { name: 'claimAmount', label: 'Claim amount (AED)', type: 'number', half: true },
     { name: 'settlementAmount', label: 'Settlement amount (AED)', type: 'number', half: true },
   ];

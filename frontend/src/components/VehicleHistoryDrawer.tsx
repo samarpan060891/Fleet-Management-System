@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { titleCase } from '../lib/text';
 import {
   Drawer, Box, Typography, IconButton, Button, Chip, Divider, LinearProgress,
   Accordion, AccordionSummary, AccordionDetails, Stack,
@@ -98,13 +99,13 @@ export default function VehicleHistoryDrawer({ vehicleId, onClose }: { vehicleId
 
             <Section title="Compliance documents" count={data.documents.length}>
               {data.documents.map((d: any) => (
-                <Row key={d.id}>{String(d.docType).replace(/_/g, ' ')} · {d.reference ?? '—'} · expires <strong>{fmtDate(d.expiryDate)}</strong>{d.cost ? ` · fee ${fmtCurrency(d.cost)}` : ''}</Row>
+                <Row key={d.id}>{titleCase(String(d.docType))} · {d.reference ?? '—'} · expires <strong>{fmtDate(d.expiryDate)}</strong>{d.cost ? ` · fee ${fmtCurrency(d.cost)}` : ''}</Row>
               ))}
             </Section>
 
             <Section title="Fuel (recent)" count={data.fuel.length}>
               {data.fuel.map((f: any) => (
-                <Row key={f.id}>{fmtDate(f.filledAt)} · {f.litres}L · {fmtCurrency(f.amount)} · {f.kmPerLitre ?? '—'} km/L · {f.channel.replace(/_/g, ' ')}</Row>
+                <Row key={f.id}>{fmtDate(f.filledAt)} · {f.litres}L · {fmtCurrency(f.amount)} · {f.kmPerLitre ?? '—'} km/L · {titleCase(f.channel)}</Row>
               ))}
             </Section>
 

@@ -13,6 +13,7 @@ import ImportDialog from '../components/ImportDialog';
 import { fmtCurrency, fmtDate } from '../i18n';
 import { useAuth } from '../auth/AuthContext';
 import { useLookups, apiError } from '../hooks/useLookups';
+import { titleCase } from '../lib/text';
 
 export default function Fines() {
   const qc = useQueryClient();
@@ -37,7 +38,7 @@ export default function Fines() {
     { name: 'reference', label: 'Fine reference', required: true, half: true },
     { name: 'offenceAt', label: 'Offence date', type: 'date', required: true, half: true },
     { name: 'vehicleId', label: 'Vehicle', type: 'select', required: true, half: true, options: vehicleOptions },
-    { name: 'type', label: 'Type', type: 'select', required: true, half: true, options: ['salik', 'speeding', 'parking', 'other'].map((t) => ({ value: t, label: t })) },
+    { name: 'type', label: 'Type', type: 'select', required: true, half: true, optionListKey: 'fine.type', options: ['salik', 'speeding', 'parking', 'other'].map((t) => ({ value: t, label: titleCase(t) })) },
     { name: 'amount', label: 'Amount (AED)', type: 'number', required: true, half: true },
     { name: 'authority', label: 'Issuing authority', half: true },
     { name: 'emirate', label: 'Emirate', half: true },
@@ -55,7 +56,7 @@ export default function Fines() {
     { field: 'offenceAt', headerName: 'Offence Date', width: 120, valueFormatter: (v) => fmtDate(v as string) },
     { field: 'vehicle', headerName: 'Vehicle', width: 130, valueGetter: (_v, r) => r.vehicle?.plateNumber ?? '—' },
     { field: 'driver', headerName: 'Driver', width: 150, valueGetter: (_v, r) => r.driver?.fullName ?? '—', renderCell: (p) => <span>{p.value}{p.row.driverOverridden ? ' *' : ''}</span> },
-    { field: 'type', headerName: 'Type', width: 100 },
+    { field: 'type', headerName: 'Type', width: 100, valueFormatter: (v) => titleCase(v as string) },
     { field: 'amount', headerName: 'Amount', width: 110, valueFormatter: (v) => fmtCurrency(v as number) },
     { field: 'status', headerName: 'Status', width: 90, renderCell: (p) => <StatusChip status={p.value as string} /> },
     { field: '__a', type: 'actions', headerName: '', width: 60, getActions: (p) => can('fines:update') ? [

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { titleCase } from '../lib/text';
 import { useQuery } from '@tanstack/react-query';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { Box, Card, CardContent, Grid, ToggleButton, ToggleButtonGroup, LinearProgress, Typography, Tabs, Tab, Chip } from '@mui/material';
@@ -24,7 +25,7 @@ export default function Costs() {
   const dispCols: GridColDef[] = [
     { field: 'disposalDate', headerName: 'Date', width: 120, valueFormatter: (v) => fmtDate(v as string) },
     { field: 'vehicle', headerName: 'Vehicle', width: 180, valueGetter: (_v, r) => r.vehicle ? `${r.vehicle.plateNumber} (${r.vehicle.plateEmirate})` : '—' },
-    { field: 'method', headerName: 'Method', width: 150, renderCell: (p) => <Chip size="small" variant="outlined" label={String(p.value).replace(/_/g, ' ')} /> },
+    { field: 'method', headerName: 'Method', width: 150, renderCell: (p) => <Chip size="small" variant="outlined" label={titleCase(String(p.value))} /> },
     { field: 'buyer', headerName: 'Buyer', width: 150 },
     { field: 'salePrice', headerName: 'Sale price', width: 120, valueFormatter: (v) => fmtCurrency(v as number) },
     { field: 'bookValue', headerName: 'Book value', width: 120, valueFormatter: (v) => fmtCurrency(v as number) },

@@ -1,12 +1,13 @@
 import { GridColDef } from '@mui/x-data-grid';
 import CrudListPage from '../components/CrudListPage';
 import { FieldDef } from '../components/FormDialog';
+import { titleCase } from '../lib/text';
 
 const TYPES = ['workshop', 'tyre_supplier', 'insurance', 'fuel_supplier', 'spare_parts', 'lessor', 'other'];
 
 const columns: GridColDef[] = [
   { field: 'name', headerName: 'Name', width: 220 },
-  { field: 'type', headerName: 'Type', width: 150, valueFormatter: (v) => String(v).replace(/_/g, ' ') },
+  { field: 'type', headerName: 'Type', width: 150, valueFormatter: (v) => titleCase(String(v)) },
   { field: 'contactPerson', headerName: 'Contact', width: 160 },
   { field: 'phone', headerName: 'Phone', width: 150 },
   { field: 'email', headerName: 'Email', width: 200 },
@@ -15,7 +16,7 @@ const columns: GridColDef[] = [
 
 const fields: FieldDef[] = [
   { name: 'name', label: 'Name', required: true, half: true },
-  { name: 'type', label: 'Type', type: 'select', required: true, half: true, options: TYPES.map((t) => ({ value: t, label: t.replace(/_/g, ' ') })) },
+  { name: 'type', label: 'Type', type: 'select', required: true, half: true, optionListKey: 'vendor.type', options: TYPES.map((t) => ({ value: t, label: titleCase(t) })) },
   { name: 'contactPerson', label: 'Contact person', half: true },
   { name: 'phone', label: 'Phone', half: true },
   { name: 'email', label: 'Email', half: true },
