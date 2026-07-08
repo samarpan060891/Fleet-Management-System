@@ -147,26 +147,130 @@ reportsRouter.get(
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="vehicle-history-${vehicle.plateNumber}.pdf"`);
-    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+    const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
     doc.pipe(res);
 
-    const H = (t: string) => doc.moveDown(0.6).fillColor('#0f6e6e').fontSize(13).text(t).fillColor('#000').fontSize(9).moveDown(0.2);
-    const line = (t: string) => doc.fontSize(9).fillColor('#000').text(t);
-    const kv = (pairs: [string, unknown][]) => {
-      for (const [k, v] of pairs) doc.fontSize(9).fillColor('#555').text(k, { continued: true }).fillColor('#000').text(`  ${v ?? '—'}`);
-    };
+    const TEAL = '#0f6e6e';
+    const TEAL_LIGHT = '#e3f0ef';
+    const ROW_ALT = '#f7f9f9';
+    const BORDER = '#dbe4e3';
+    const TEXT = '#1a1a1a';
+    const MUTED = '#666666';
 
-    doc.fontSize(18).fillColor('#0f6e6e').text('Vehicle History Report');
-    doc.fontSize(15).fillColor('#000').text(`${vehicle.plateNumber} (${vehicle.plateEmirate})`);
-    doc.fontSize(9).fillColor('#777').text(`Generated ${dayjs().format('DD/MM/YYYY HH:mm')}`);
+    const left = () => doc.page.margins.left;
+    const width = () => doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const bottom = () => doc.page.height - doc.page.margins.bottom;
 
-    H('Vehicle details');
-    kv([
+    // Advance to a new page if `needed` points of vertical space aren't left.
+    // Returns true when a page break happened, so callers (e.g. table row
+    // loops) know to redraw a repeating header.
+    function ensureSpace(needed: number): boolean {
+      if (doc.y + needed > bottom()) {
+        doc.addPage();
+        return true;
+      }
+      return false;
+    }
+
+    // Section headline — a filled teal band with bold white text, so each
+    // part of the report is unmistakably highlighted rather than blending
+    // into plain body text.
+    function section(title: string) {
+      // Reserve room for the band plus at least one row of whatever follows,
+      // so the headline never gets stranded alone at the bottom of a page.
+      ensureSpace(70);
+      doc.moveDown(0.6);
+      const y = doc.y;
+      doc.rect(left(), y, width(), 20).fill(TEAL);
+      doc.fillColor('#fff').font('Helvetica-Bold').fontSize(11).text(title, left() + 8, y + 5, { width: width() - 16 });
+      doc.y = y + 26;
+      doc.font('Helvetica').fontSize(9).fillColor(TEXT);
+    }
+
+    // Two-column "Field | Value" table for structured facts.
+    function kvTable(pairs: [string, unknown][]) {
+      const w = width();
+      const labelW = w * 0.32;
+      const rowH = 16;
+      pairs.forEach(([k, v], i) => {
+        ensureSpace(rowH);
+        const y = doc.y;
+        if (i % 2 === 1) doc.rect(left(), y, w, rowH).fill(ROW_ALT);
+        doc.fillColor(MUTED).font('Helvetica-Bold').fontSize(8.5).text(String(k), left() + 6, y + 4, { width: labelW - 10 });
+        doc.fillColor(TEXT).font('Helvetica').fontSize(8.5).text(String(v ?? '—'), left() + labelW, y + 4, { width: w - labelW - 6 });
+        doc.y = y + rowH;
+      });
+      doc.moveDown(0.4);
+    }
+
+    // Bordered data table with a shaded header row; the header is redrawn
+    // whenever rows spill onto a new page.
+    function table(headers: string[], widths: number[], rows: string[][]) {
+      const w = width();
+      const rowH = 16;
+      const drawHeader = () => {
+        ensureSpace(rowH * 2);
+        const y = doc.y;
+        doc.rect(left(), y, w, rowH).fill(TEAL_LIGHT);
+        let x = left();
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(TEAL);
+        headers.forEach((h, i) => { doc.text(h, x + 5, y + 4, { width: widths[i] - 8, height: rowH - 4, ellipsis: true }); x += widths[i]; });
+        doc.y = y + rowH;
+      };
+      drawHeader();
+      if (!rows.length) {
+        doc.font('Helvetica').fontSize(8.5).fillColor(MUTED).text('None', left() + 6, doc.y + 3);
+        doc.moveDown(1);
+        return;
+      }
+      rows.forEach((r, ri) => {
+        if (ensureSpace(rowH)) drawHeader();
+        const y = doc.y;
+        if (ri % 2 === 1) doc.rect(left(), y, w, rowH).fill(ROW_ALT);
+        let x = left();
+        doc.font('Helvetica').fontSize(8).fillColor(TEXT);
+        r.forEach((cell, i) => { doc.text(cell, x + 5, y + 4, { width: widths[i] - 8, height: rowH - 4, ellipsis: true }); x += widths[i]; });
+        doc.y = y + rowH;
+      });
+      doc.moveTo(left(), doc.y).lineTo(left() + w, doc.y).strokeColor(BORDER).lineWidth(0.5).stroke();
+      doc.moveDown(0.5);
+    }
+
+    // Bulleted notes — for free-text detail (descriptions, parts) that
+    // doesn't fit cleanly into a table column.
+    function bullets(items: string[], heading?: string) {
+      if (!items.length) return;
+      if (heading) {
+        ensureSpace(14);
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor(TEXT).text(heading, left(), doc.y);
+        doc.moveDown(0.15);
+      }
+      for (const item of items) {
+        ensureSpace(14);
+        doc.font('Helvetica').fontSize(8.5).fillColor(TEXT).text(`•  ${item}`, left() + 4, doc.y, { width: width() - 8 });
+        doc.moveDown(0.1);
+      }
+      doc.moveDown(0.3);
+    }
+
+    const money = (n: unknown) => Number(n ?? 0).toFixed(2);
+    const dt = (d: unknown) => (d ? dayjs(d as string).format('DD/MM/YYYY') : '—');
+
+    // --- Title band ---
+    const titleH = 64;
+    doc.rect(0, 0, doc.page.width, titleH).fill(TEAL);
+    doc.fillColor('#fff').font('Helvetica-Bold').fontSize(19).text('Vehicle History Report', left(), 15);
+    doc.font('Helvetica-Bold').fontSize(12).fillColor('#dff5f2').text(`${vehicle.plateNumber} (${vehicle.plateEmirate})`, left(), 40);
+    doc.y = titleH + 12;
+    doc.font('Helvetica').fontSize(8).fillColor(MUTED).text(`Generated ${dayjs().format('DD/MM/YYYY HH:mm')}`, left(), doc.y);
+
+    section('Vehicle details');
+    kvTable([
       ['Make / Model / Year', `${vehicle.make} ${vehicle.model} ${vehicle.year}`],
       ['Type / Body', `${vehicle.vehicleType} / ${vehicle.bodyType ?? '—'}`],
       ['VIN / Engine', `${vehicle.vin ?? '—'} / ${vehicle.engineNumber ?? '—'}`],
       ['Colour / Seats / Payload', `${vehicle.colour ?? '—'} / ${vehicle.seatingCapacity ?? '—'} / ${vehicle.payloadKg ?? '—'} kg`],
-      ['Ownership', `${vehicle.ownership}${vehicle.leaseEnd ? ` (ends ${dayjs(vehicle.leaseEnd).format('DD/MM/YYYY')})` : ''}`],
+      ['Ownership', `${vehicle.ownership}${vehicle.leaseEnd ? ` (ends ${dt(vehicle.leaseEnd)})` : ''}`],
       ['Depot', vehicle.store ? `${vehicle.store.code} · ${vehicle.store.name}` : '—'],
       ['Current odometer', `${vehicle.currentOdometer} km`],
       ['Status', vehicle.status],
@@ -174,49 +278,90 @@ reportsRouter.get(
       ['GPS / Fuel-kit', `${vehicle.gpsUnitId ?? '—'} / ${vehicle.fuelKitId ?? '—'}`],
     ]);
 
-    H('Purchase & depreciation');
-    kv([
-      ['Purchase date / price', vehicle.purchase ? `${dayjs(vehicle.purchase.purchaseDate).format('DD/MM/YYYY')} · AED ${vehicle.purchase.purchasePrice}` : '—'],
+    section('Purchase & depreciation');
+    const purchasePairs: [string, unknown][] = [
+      ['Purchase date / price', vehicle.purchase ? `${dt(vehicle.purchase.purchaseDate)} · AED ${money(vehicle.purchase.purchasePrice)}` : '—'],
       ['Supplier', vehicle.purchase?.supplier?.name ?? '—'],
-      ['Useful life / residual', `${vehicle.usefulLifeYears ?? vehicle.purchase?.usefulLifeYears ?? '—'} yrs · AED ${vehicle.residualValue ?? vehicle.purchase?.residualValue ?? '—'}`],
-      ['Warranty', `${vehicle.warrantyEndDate ? dayjs(vehicle.warrantyEndDate).format('DD/MM/YYYY') : '—'} / ${vehicle.warrantyEndKm ?? '—'} km`],
-    ]);
+      ['Useful life / residual', `${vehicle.usefulLifeYears ?? vehicle.purchase?.usefulLifeYears ?? '—'} yrs · AED ${money(vehicle.residualValue ?? vehicle.purchase?.residualValue)}`],
+      ['Warranty', `${dt(vehicle.warrantyEndDate)} / ${vehicle.warrantyEndKm ?? '—'} km`],
+    ];
     if (vehicle.disposal) {
-      kv([['Disposed', `${dayjs(vehicle.disposal.disposalDate).format('DD/MM/YYYY')} · ${vehicle.disposal.method} · sale AED ${vehicle.disposal.salePrice ?? '—'} · gain/loss AED ${vehicle.disposal.gainLoss ?? '—'}`]]);
+      purchasePairs.push(['Disposed', `${dt(vehicle.disposal.disposalDate)} · ${vehicle.disposal.method} · sale AED ${money(vehicle.disposal.salePrice)} · gain/loss AED ${money(vehicle.disposal.gainLoss)}`]);
     }
+    kvTable(purchasePairs);
 
-    H('Cost summary (YTD)');
-    line(`Fuel AED ${tco.buckets.fuel} · Maintenance AED ${tco.buckets.maintenance} · Tyres AED ${tco.buckets.tyres} · Insurance AED ${tco.buckets.insurance} · Permit AED ${tco.buckets.permit} · Fines AED ${tco.buckets.fines}`);
-    line(`Depreciation AED ${tco.buckets.depreciation} · Total AED ${tco.totalCost} · Cost/km ${tco.costPerKm ?? 'n/a'} · Fuel lifetime: ${fuelAgg._count} fills, ${Number(fuelAgg._sum.litres ?? 0)} L, AED ${Number(fuelAgg._sum.amount ?? 0)}`);
+    section('Cost summary (YTD)');
+    table(['Category', 'Amount (AED)'], [300, 215], [
+      ['Fuel', money(tco.buckets.fuel)],
+      ['Maintenance', money(tco.buckets.maintenance)],
+      ['Tyres', money(tco.buckets.tyres)],
+      ['Insurance', money(tco.buckets.insurance)],
+      ['Permit', money(tco.buckets.permit)],
+      ['Fines', money(tco.buckets.fines)],
+      ['Depreciation', money(tco.buckets.depreciation)],
+      ['Total', money(tco.totalCost)],
+    ]);
+    bullets([
+      `Cost per km: ${tco.costPerKm ?? 'n/a'}`,
+      `Fuel lifetime: ${fuelAgg._count} fills, ${Number(fuelAgg._sum.litres ?? 0)} L, AED ${money(fuelAgg._sum.amount)}`,
+    ]);
 
-    H('PM schedule');
-    line(vehicle.pmState ? `Last PM: ${vehicle.pmState.lastPmKm ?? '—'} km / ${vehicle.pmState.lastPmDate ? dayjs(vehicle.pmState.lastPmDate).format('DD/MM/YYYY') : '—'}   →   Next PM: ${vehicle.pmState.nextPmKm ?? '—'} km / ${vehicle.pmState.nextPmDate ? dayjs(vehicle.pmState.nextPmDate).format('DD/MM/YYYY') : '—'}` : 'No PM state');
+    section('PM schedule');
+    kvTable([
+      ['Last PM', vehicle.pmState ? `${vehicle.pmState.lastPmKm ?? '—'} km · ${dt(vehicle.pmState.lastPmDate)}` : '—'],
+      ['Next PM', vehicle.pmState ? `${vehicle.pmState.nextPmKm ?? '—'} km · ${dt(vehicle.pmState.nextPmDate)}` : '—'],
+    ]);
 
-    H(`Maintenance log (${jobCards.length} job cards)`);
-    if (!jobCards.length) line('None');
-    for (const j of jobCards) {
-      doc.fontSize(9).fillColor('#000').text(
-        `${dayjs(j.dateIn).format('DD/MM/YYYY')}${j.dateOut ? `–${dayjs(j.dateOut).format('DD/MM/YYYY')}` : ''} · ${j.type} · ${j.jobNumber} · ${j.vendor?.name ?? 'in-house'} · Inv ${j.invoiceNumber ?? '—'} · AED ${j.totalCost ?? 0}${j.isWarrantyClaim ? ' · WARRANTY' : ''}`
-      );
-      if (j.description) doc.fontSize(8).fillColor('#555').text(`    ${j.description}`);
-      for (const p of j.parts) doc.fontSize(8).fillColor('#777').text(`    • ${p.partName} ×${p.qty} @ AED ${p.unitCost}`);
-    }
+    section(`Maintenance log (${jobCards.length} job cards)`);
+    table(
+      ['Date In', 'Date Out', 'Type', 'Job #', 'Vendor', 'Invoice', 'Cost (AED)', 'Warranty'],
+      [55, 55, 60, 65, 100, 60, 65, 55],
+      jobCards.map((j) => [
+        dt(j.dateIn), dt(j.dateOut), j.type, j.jobNumber, j.vendor?.name ?? 'In-house',
+        j.invoiceNumber ?? '—', money(j.totalCost), j.isWarrantyClaim ? 'Yes' : '—',
+      ])
+    );
+    bullets(
+      jobCards
+        .filter((j) => j.description || j.parts.length)
+        .map((j) => {
+          const parts = j.parts.length ? j.parts.map((p) => `${p.partName} ×${p.qty} @ AED ${money(p.unitCost)}`).join('; ') : null;
+          return `${j.jobNumber}: ${[j.description, parts ? `Parts — ${parts}` : null].filter(Boolean).join(' — ')}`;
+        }),
+      'Job notes'
+    );
 
-    H(`Tyres (${tyres.length})`);
-    if (!tyres.length) line('None');
-    for (const t of tyres) line(`${t.serial} · ${t.brand ?? '—'} · pos ${t.position ?? '—'} · fitted ${t.fitmentDate ? dayjs(t.fitmentDate).format('DD/MM/YYYY') : '—'} @ ${t.fitmentOdometer ?? '—'} km · AED ${t.cost ?? '—'}${t.scrapDate ? ` · SCRAPPED ${dayjs(t.scrapDate).format('DD/MM/YYYY')}` : ''}`);
+    section(`Tyres (${tyres.length})`);
+    table(
+      ['Serial', 'Brand', 'Position', 'Fitted', 'Fitted Odo (km)', 'Cost (AED)', 'Status'],
+      [90, 80, 60, 65, 80, 65, 75],
+      tyres.map((t) => [
+        t.serial, t.brand ?? '—', t.position ?? '—', dt(t.fitmentDate), String(t.fitmentOdometer ?? '—'),
+        money(t.cost), t.scrapDate ? `Scrapped ${dt(t.scrapDate)}` : 'Active',
+      ])
+    );
 
-    H('Compliance documents');
-    if (!documents.length) line('None');
-    for (const d of documents) line(`${d.docType} · ${d.reference ?? '—'} · expires ${d.expiryDate ? dayjs(d.expiryDate).format('DD/MM/YYYY') : '—'}${d.cost ? ` · fee AED ${d.cost}` : ''}`);
+    section('Compliance documents');
+    table(
+      ['Document', 'Reference', 'Expiry', 'Fee (AED)'],
+      [140, 160, 120, 95],
+      documents.map((d) => [d.docType, d.reference ?? '—', dt(d.expiryDate), d.cost ? money(d.cost) : '—'])
+    );
 
-    H(`Fines (${fines.length})`);
-    if (!fines.length) line('None');
-    for (const f of fines) line(`${dayjs(f.offenceAt).format('DD/MM/YYYY')} · ${f.type} · ${f.reference} · AED ${f.amount} · ${f.status}`);
+    section(`Fines (${fines.length})`);
+    table(
+      ['Date', 'Type', 'Reference', 'Amount (AED)', 'Status'],
+      [80, 110, 140, 100, 85],
+      fines.map((f) => [dt(f.offenceAt), f.type, f.reference, money(f.amount), f.status])
+    );
 
-    H(`Incidents (${incidents.length})`);
-    if (!incidents.length) line('None');
-    for (const i of incidents) line(`${dayjs(i.occurredAt).format('DD/MM/YYYY')} · ${i.emirate ?? ''} ${i.area ?? ''} · ${i.claimStatus} · claim AED ${i.claimAmount ?? 0}${i.description ? ` · ${i.description}` : ''}`);
+    section(`Incidents (${incidents.length})`);
+    table(
+      ['Date', 'Location', 'Claim Status', 'Claim Amount (AED)'],
+      [80, 180, 140, 115],
+      incidents.map((i) => [dt(i.occurredAt), [i.emirate, i.area].filter(Boolean).join(' ') || '—', i.claimStatus, money(i.claimAmount)])
+    );
+    bullets(incidents.filter((i) => i.description).map((i) => `${dt(i.occurredAt)}: ${i.description}`));
 
     doc.end();
   })
