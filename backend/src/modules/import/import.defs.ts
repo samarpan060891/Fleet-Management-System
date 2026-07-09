@@ -24,12 +24,18 @@ export interface ImportDef {
   columns: ImportColumn[];
   // Validate a coerced row and produce prisma-ready data, resolving natural-key
   // foreign keys (e.g. store code → id). Throw Error(message) for row errors.
-  build: (row: Record<string, unknown>, db: PrismaClient) => Promise<Record<string, unknown>>;
+  // `commit` is false during preview (dry run) — build() must not write to the
+  // database in that case, since a preview must have no side effects.
+  build: (row: Record<string, unknown>, db: PrismaClient, actorId: string, commit: boolean) => Promise<Record<string, unknown>>;
   // Persist one record; returns the created id.
   create: (data: Record<string, unknown>, db: PrismaClient, actorId: string) => Promise<string>;
 }
 
 // Helpers --------------------------------------------------------------------
+// These reference existing identity/compliance-critical records (vehicles,
+// drivers, employees, routes) and deliberately stay strict — auto-creating a
+// vehicle/driver from a bare code would produce a record missing required
+// details (make/model, licence, schedule, ...) that other features depend on.
 async function resolveVehicle(db: PrismaClient, plate: unknown, emirate: unknown): Promise<string> {
   if (!plate) throw new Error('vehiclePlate is required');
   const where = emirate
@@ -45,17 +51,48 @@ async function resolveDriverByStaff(db: PrismaClient, staffId: unknown): Promise
   if (!d) throw new Error(`Driver not found for staff ID "${staffId}"`);
   return d.id;
 }
-async function resolveStoreByCode(db: PrismaClient, code: unknown): Promise<string | undefined> {
+
+// Store and Vendor are lightweight master-data lookups with no compliance/
+// identity stakes, so an unmatched code/name auto-creates a minimal record
+// (flagged via description/notes) instead of failing the whole row — the
+// user can fill in the rest (address, contact, TRN, ...) later. During
+// preview (commit=false) this only checks/reports, it never writes.
+async function resolveStoreByCode(db: PrismaClient, code: unknown, actorId: string, commit: boolean, fallbackEmirate?: unknown): Promise<string | undefined> {
   if (!code) return undefined;
-  const s = await db.store.findUnique({ where: { code: String(code) } });
-  if (!s) throw new Error(`Store not found for code "${code}"`);
+  const value = String(code);
+  if (!commit) {
+    const existing = await db.store.findUnique({ where: { code: value } });
+    return existing?.id; // undefined = will be auto-created on commit
+  }
+  const s = await db.store.upsert({
+    where: { code: value },
+    create: {
+      code: value,
+      name: value,
+      emirate: fallbackEmirate ? String(fallbackEmirate) : 'Unspecified',
+      description: 'Auto-created during import — please review/complete these details.',
+      createdBy: actorId,
+      updatedBy: actorId,
+    },
+    update: {},
+  });
   return s.id;
 }
-async function resolveVendorByName(db: PrismaClient, name: unknown): Promise<string | undefined> {
+async function resolveVendorByName(db: PrismaClient, name: unknown, actorId: string, commit: boolean): Promise<string | undefined> {
   if (!name) return undefined;
-  const v = await db.vendor.findFirst({ where: { name: String(name), isActive: true } });
-  if (!v) throw new Error(`Vendor not found with name "${name}"`);
-  return v.id;
+  const value = String(name);
+  const existing = await db.vendor.findFirst({ where: { name: value, isActive: true } });
+  if (existing) return existing.id;
+  if (!commit) return undefined; // will be auto-created on commit
+  const type = await ensureOptionListValue(db, 'vendor.type', 'other', actorId);
+  const created = await db.vendor.create({
+    data: {
+      type, name: value,
+      notes: 'Auto-created during import — please review/complete these details.',
+      createdBy: actorId, updatedBy: actorId,
+    },
+  });
+  return created.id;
 }
 async function resolveRouteByCode(db: PrismaClient, code: unknown): Promise<string> {
   if (!code) throw new Error('routeCode is required');
@@ -95,12 +132,12 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       { key: 'payloadKg', label: 'Payload (kg)', type: 'number' },
       { key: 'ownership', label: 'Ownership', example: 'owned', note: 'Any value accepted — only owned/leased/rented drive lease-expiry alerts' },
       { key: 'currentOdometer', label: 'Current Odometer (km)', type: 'number', example: '45000' },
-      { key: 'storeCode', label: 'Depot/Store Code', note: 'Must match an existing store code', example: 'DXB01' },
+      { key: 'storeCode', label: 'Depot/Store Code', note: 'Optional — an unrecognized code auto-creates a new store (you can fill in its details later)', example: 'DXB01' },
       { key: 'warrantyEndDate', label: 'Warranty End Date', type: 'date', example: '2027-01-31' },
       { key: 'warrantyEndKm', label: 'Warranty End (km)', type: 'number' },
     ],
-    build: async (row, db) => {
-      const storeId = await resolveStoreByCode(db, row.storeCode);
+    build: async (row, db, actorId, commit) => {
+      const storeId = await resolveStoreByCode(db, row.storeCode, actorId, commit, row.plateEmirate);
       const vehicleType = await ensureOptionListValue(db, 'vehicle.type', String(row.vehicleType));
       const ownership = row.ownership ? await ensureOptionListValue(db, 'vehicle.ownership', String(row.ownership)) : undefined;
       const { storeCode, ...rest } = row;
@@ -301,7 +338,7 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       { key: 'dateOut', label: 'Date Out', type: 'date', example: '2026-05-03' },
       { key: 'type', label: 'Type', required: true, enumValues: ['scheduled', 'breakdown', 'accident', 'tyre'], example: 'scheduled' },
       { key: 'description', label: 'Description / work done', example: 'PM service + oil change' },
-      { key: 'vendorName', label: 'Workshop / vendor name', note: 'Must match an existing vendor' },
+      { key: 'vendorName', label: 'Workshop / vendor name', note: 'An unrecognized name auto-creates a new vendor (fill in contact details later)' },
       { key: 'invoiceNumber', label: 'Invoice number' },
       { key: 'odometerIn', label: 'Odometer In (km)', type: 'number' },
       { key: 'odometerOut', label: 'Odometer Out (km)', type: 'number' },
@@ -309,9 +346,9 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       { key: 'otherCharges', label: 'Other charges (AED)', type: 'number' },
       { key: 'totalCost', label: 'Total cost (AED)', type: 'number', example: '650' },
     ],
-    build: async (row, db) => {
+    build: async (row, db, actorId, commit) => {
       const vehicleId = await resolveVehicle(db, row.vehiclePlate, row.vehicleEmirate);
-      const vendorId = await resolveVendorByName(db, row.vendorName);
+      const vendorId = await resolveVendorByName(db, row.vendorName, actorId, commit);
       const total = row.totalCost != null ? Number(row.totalCost)
         : Number(row.labourCharges ?? 0) + Number(row.otherCharges ?? 0);
       return {
@@ -354,12 +391,12 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       { key: 'fitmentDate', label: 'Fitment Date', type: 'date', example: '2026-01-15' },
       { key: 'fitmentOdometer', label: 'Fitment Odometer (km)', type: 'number' },
       { key: 'treadDepthMm', label: 'Tread Depth (mm)', type: 'number', example: '7.5' },
-      { key: 'vendorName', label: 'Supplier / vendor name', note: 'Must match an existing vendor' },
+      { key: 'vendorName', label: 'Supplier / vendor name', note: 'An unrecognized name auto-creates a new vendor (fill in contact details later)' },
       { key: 'cost', label: 'Cost (AED)', type: 'number', example: '420' },
     ],
-    build: async (row, db) => {
+    build: async (row, db, actorId, commit) => {
       const vehicleId = row.vehiclePlate ? await resolveVehicle(db, row.vehiclePlate, row.vehicleEmirate) : undefined;
-      const vendorId = await resolveVendorByName(db, row.vendorName);
+      const vendorId = await resolveVendorByName(db, row.vendorName, actorId, commit);
       return {
         serial: row.serial, brand: row.brand, vehicleId, position: row.position,
         fitmentDate: row.fitmentDate, fitmentOdometer: row.fitmentOdometer,
@@ -382,15 +419,15 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       { key: 'description', label: 'Description' },
       { key: 'policeReportNo', label: 'Police Report No.' },
       { key: 'thirdParty', label: 'Third-Party Details' },
-      { key: 'insuranceVendorName', label: 'Insurance Vendor Name', note: 'Must match an existing vendor' },
+      { key: 'insuranceVendorName', label: 'Insurance Vendor Name', note: 'An unrecognized name auto-creates a new vendor (fill in contact details later)' },
       { key: 'claimStatus', label: 'Claim Status', enumValues: ['reported', 'under_review', 'approved', 'rejected', 'settled'], example: 'reported' },
       { key: 'claimAmount', label: 'Claim Amount (AED)', type: 'number' },
       { key: 'settlementAmount', label: 'Settlement Amount (AED)', type: 'number' },
     ],
-    build: async (row, db) => {
+    build: async (row, db, actorId, commit) => {
       const vehicleId = await resolveVehicle(db, row.vehiclePlate, row.vehicleEmirate);
       const driverId = await resolveDriverByStaff(db, row.driverStaffId);
-      const insuranceVendorId = await resolveVendorByName(db, row.insuranceVendorName);
+      const insuranceVendorId = await resolveVendorByName(db, row.insuranceVendorName, actorId, commit);
       return {
         vehicleId, driverId, occurredAt: row.occurredAt, emirate: row.emirate, area: row.area,
         description: row.description, policeReportNo: row.policeReportNo, thirdParty: row.thirdParty,

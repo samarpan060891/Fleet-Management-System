@@ -139,7 +139,7 @@ export async function runImport(def: ImportDef, buffer: Buffer, commit: boolean,
       continue;
     }
     try {
-      const data = await def.build(p.raw, prisma);
+      const data = await def.build(p.raw, prisma, actorId, commit);
       buildable.push({ rowNum: p.rowNum, data });
     } catch (err) {
       errors.push({ row: p.rowNum, message: friendlyErrorMessage(err) });
