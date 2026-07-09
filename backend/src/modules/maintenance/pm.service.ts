@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient, VehicleType } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import dayjs from 'dayjs';
 
 export type Db = PrismaClient | Prisma.TransactionClient;
@@ -16,7 +16,7 @@ export async function recomputePmState(
   });
   if (!vehicle) return;
   const schedule = await db.pmSchedule.findUnique({
-    where: { vehicleType: vehicle.vehicleType as VehicleType },
+    where: { vehicleType: vehicle.vehicleType },
   });
   const kmInterval = schedule?.kmInterval ?? 10000;
   const days = schedule?.timeIntervalDays ?? 180;

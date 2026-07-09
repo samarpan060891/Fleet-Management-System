@@ -34,21 +34,6 @@ enum Role {
   STAFF
 }
 
-enum VehicleType {
-  light
-  sedan
-  pickup
-  truck_3_7t
-  bus
-  van
-}
-
-enum Ownership {
-  owned
-  leased
-  rented
-}
-
 enum VehicleStatus {
   active
   in_workshop
@@ -194,12 +179,12 @@ model Vehicle {
   vin             String?       @map("vin")
   engineNumber    String?       @map("engine_number")
   colour          String?
-  vehicleType     VehicleType   @map("vehicle_type")
+  vehicleType     String        @map("vehicle_type") // user-extensible (see OptionListItem "vehicle.type"); unmatched types get default PM intervals
   bodyType        String?       @map("body_type")
   seatingCapacity Int?          @map("seating_capacity")
   payloadKg       Int?          @map("payload_kg")
 
-  ownership       Ownership     @default(owned)
+  ownership       String        @default("owned") // user-extensible (see OptionListItem "vehicle.ownership")
   leaseStart      DateTime?     @map("lease_start")
   leaseEnd        DateTime?     @map("lease_end")
   monthlyCost     Decimal?      @map("monthly_cost") @db.Decimal(12, 2)
@@ -535,7 +520,7 @@ model JobCardPart {
 // PM schedule defaults per vehicle type (editable settings, not hard-coded).
 model PmSchedule {
   id          String      @id @default(uuid())
-  vehicleType VehicleType @unique @map("vehicle_type")
+  vehicleType String      @unique @map("vehicle_type")
   kmInterval  Int         @map("km_interval")
   timeIntervalDays Int    @map("time_interval_days")
   createdAt   DateTime    @default(now()) @map("created_at")

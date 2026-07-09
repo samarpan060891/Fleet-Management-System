@@ -6,14 +6,9 @@ import { asyncHandler } from '../../middleware/errorHandler';
 import { audit } from '../../lib/audit';
 import { actorFrom } from '../../lib/http';
 import { BadRequest } from '../../lib/errors';
+import { normalizeOptionValue, titleCaseOption } from '../../lib/optionList';
 
 export const optionListsRouter = Router();
-
-// Capitalize the first letter of each word for display (e.g. "truck_3_7t" ->
-// "Truck 3 7t"). Applied whenever a user-added label isn't given explicitly.
-function titleCase(s: string): string {
-  return s.replace(/[_-]+/g, ' ').trim().replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 // Extra, user-added picklist values for a given dropdown (e.g. fine type,
 // vehicle type). Any authenticated user can read/add — this only ever
@@ -36,9 +31,9 @@ optionListsRouter.post(
   validate({ body: createSchema }),
   asyncHandler(async (req, res) => {
     const raw = req.body.value as string;
-    const value = raw.toLowerCase().trim().replace(/\s+/g, '_');
+    const value = normalizeOptionValue(raw);
     if (!value) throw BadRequest('A value is required');
-    const label = (req.body.label as string | undefined)?.trim() || titleCase(raw);
+    const label = (req.body.label as string | undefined)?.trim() || titleCaseOption(raw);
 
     const item = await prisma.optionListItem.upsert({
       where: { listKey_value: { listKey: req.params.key, value } },

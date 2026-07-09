@@ -92,8 +92,8 @@ export default function Vehicles() {
     { name: 'plateNumber', label: 'Plate number', required: true, half: true },
     { name: 'plateEmirate', label: 'Plate emirate', required: true, half: true },
     { name: 'plateCategory', label: 'Plate category', half: true },
-    // vehicleType is a fixed DB-level enum (drives per-type PM schedules) — not user-extensible.
-    { name: 'vehicleType', label: 'Vehicle type', type: 'select', required: true, half: true, options: TYPES.map((t) => ({ value: t, label: titleCase(t) })) },
+    // A new type gets default PM intervals until a schedule is set for it under Maintenance.
+    { name: 'vehicleType', label: 'Vehicle type', type: 'select', required: true, half: true, optionListKey: 'vehicle.type', options: TYPES.map((t) => ({ value: t, label: titleCase(t) })) },
     { name: 'make', label: 'Make', required: true, half: true },
     { name: 'model', label: 'Model', required: true, half: true },
     { name: 'year', label: 'Year', type: 'number', required: true, half: true },
@@ -104,7 +104,8 @@ export default function Vehicles() {
     { name: 'seatingCapacity', label: 'Seating capacity', type: 'number', half: true },
     { name: 'payloadKg', label: 'Payload (kg)', type: 'number', half: true },
     { name: 'currentOdometer', label: 'Current odometer (km)', type: 'number', half: true },
-    { name: 'ownership', label: 'Ownership', type: 'select', half: true, options: OWNERSHIP.map((o) => ({ value: o, label: o })) },
+    // Only owned/leased/rented drive the lease-expiry alert — anything else just skips it.
+    { name: 'ownership', label: 'Ownership', type: 'select', half: true, optionListKey: 'vehicle.ownership', options: OWNERSHIP.map((o) => ({ value: o, label: titleCase(o) })) },
     { name: 'storeId', label: 'Depot / store', type: 'select', half: true, options: storeOptions },
     { name: 'leaseStart', label: 'Lease/rental start', type: 'date', half: true, showIf: (v) => v.ownership === 'leased' || v.ownership === 'rented' },
     { name: 'leaseEnd', label: 'Lease/rental end', type: 'date', half: true, showIf: (v) => v.ownership === 'leased' || v.ownership === 'rented' },

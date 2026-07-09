@@ -13,8 +13,13 @@ import { utcDateOnly } from '../../lib/dateOnly';
 
 export const vehiclesRouter = Router();
 
-const vehicleType = z.enum(['light', 'sedan', 'pickup', 'truck_3_7t', 'bus', 'van']);
-const ownership = z.enum(['owned', 'leased', 'rented']);
+// User-extensible categories (see /option-lists/vehicle.type and
+// /option-lists/vehicle.ownership) — accept any non-empty slug rather than a
+// fixed enum. A vehicle type with no matching PmSchedule falls back to
+// default PM intervals; an ownership value outside owned/leased/rented just
+// never triggers the lease/rental-expiry alert.
+const vehicleType = z.string().min(1).max(60);
+const ownership = z.string().min(1).max(60);
 const status = z.enum(['active', 'in_workshop', 'vor', 'idle', 'disposed']);
 
 const isoDate = z.string().datetime().optional().or(z.string().optional());

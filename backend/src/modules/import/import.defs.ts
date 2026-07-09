@@ -4,6 +4,7 @@ import { Resource } from '../../config/permissions';
 import { driverOnDate } from '../assignments/assignments.service';
 import { recordReading } from '../odometer/odometer.service';
 import { createFuelTransaction } from '../fuel/fuel.service';
+import { ensureOptionListValue } from '../../lib/optionList';
 
 export type ColType = 'string' | 'number' | 'date' | 'boolean';
 
@@ -83,13 +84,16 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       { key: 'make', label: 'Make', required: true, example: 'Toyota' },
       { key: 'model', label: 'Model', required: true, example: 'Hiace' },
       { key: 'year', label: 'Year', type: 'number', required: true, example: '2022' },
-      { key: 'vehicleType', label: 'Vehicle Type', required: true, enumValues: ['light', 'sedan', 'pickup', 'truck_3_7t', 'bus', 'van'], example: 'van' },
+      // User-extensible categories (see /option-lists/vehicle.type,
+      // /option-lists/vehicle.ownership) — any text is accepted and becomes
+      // a new picklist option if it doesn't already match one.
+      { key: 'vehicleType', label: 'Vehicle Type', required: true, example: 'van', note: 'Any value accepted — new types get default PM intervals until one is set' },
       { key: 'vin', label: 'VIN / Chassis', example: 'JT123...' },
       { key: 'colour', label: 'Colour', example: 'White' },
       { key: 'bodyType', label: 'Body Type', example: 'panel van' },
       { key: 'seatingCapacity', label: 'Seating Capacity', type: 'number' },
       { key: 'payloadKg', label: 'Payload (kg)', type: 'number' },
-      { key: 'ownership', label: 'Ownership', enumValues: ['owned', 'leased', 'rented'], example: 'owned' },
+      { key: 'ownership', label: 'Ownership', example: 'owned', note: 'Any value accepted — only owned/leased/rented drive lease-expiry alerts' },
       { key: 'currentOdometer', label: 'Current Odometer (km)', type: 'number', example: '45000' },
       { key: 'storeCode', label: 'Depot/Store Code', note: 'Must match an existing store code', example: 'DXB01' },
       { key: 'warrantyEndDate', label: 'Warranty End Date', type: 'date', example: '2027-01-31' },
@@ -97,8 +101,10 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
     ],
     build: async (row, db) => {
       const storeId = await resolveStoreByCode(db, row.storeCode);
+      const vehicleType = await ensureOptionListValue(db, 'vehicle.type', String(row.vehicleType));
+      const ownership = row.ownership ? await ensureOptionListValue(db, 'vehicle.ownership', String(row.ownership)) : undefined;
       const { storeCode, ...rest } = row;
-      return { ...rest, storeId };
+      return { ...rest, storeId, vehicleType, ownership };
     },
     create: async (data, db, actorId) => (await db.vehicle.create({ data: withAudit(data, actorId) as Prisma.VehicleUncheckedCreateInput })).id,
   },

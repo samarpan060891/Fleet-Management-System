@@ -161,13 +161,13 @@ maintenanceRouter.put(
   '/pm-schedules/:vehicleType',
   authorize('maintenance', 'update'),
   validate({
-    params: z.object({ vehicleType: z.enum(['light', 'sedan', 'pickup', 'truck_3_7t', 'bus', 'van']) }),
+    params: z.object({ vehicleType: z.string().min(1).max(60) }),
     body: z.object({ kmInterval: z.number().int().positive(), timeIntervalDays: z.number().int().positive() }),
   }),
   asyncHandler(async (req, res) => {
     const row = await prisma.pmSchedule.upsert({
-      where: { vehicleType: req.params.vehicleType as never },
-      create: { vehicleType: req.params.vehicleType as never, ...req.body, updatedBy: req.user!.id },
+      where: { vehicleType: req.params.vehicleType },
+      create: { vehicleType: req.params.vehicleType, ...req.body, updatedBy: req.user!.id },
       update: { ...req.body, updatedBy: req.user!.id },
     });
     await audit({ entity: 'pm_schedules', entityId: row.id, action: 'update', actor: actorFrom(req), after: row });
