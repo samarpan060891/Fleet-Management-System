@@ -1,10 +1,25 @@
 import ExcelJS from 'exceljs';
 import dayjs from 'dayjs';
 import customParse from 'dayjs/plugin/customParseFormat';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { ImportColumn, ImportDef } from './import.defs';
 
 dayjs.extend(customParse);
+
+// Turns a raw thrown error into a short, user-facing message instead of a
+// Prisma stack trace (e.g. a unique-constraint violation on re-import).
+function friendlyErrorMessage(err: unknown): string {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2002') {
+      const target = (err.meta?.target as string[] | string | undefined) ?? 'value';
+      const field = Array.isArray(target) ? target.join(', ') : target;
+      return `A record with this ${field} already exists`;
+    }
+    return err.message.split('\n').pop()?.trim() || 'Database error';
+  }
+  return err instanceof Error ? err.message : 'Invalid row';
+}
 
 export interface ImportResult {
   dryRun: boolean;
@@ -127,7 +142,7 @@ export async function runImport(def: ImportDef, buffer: Buffer, commit: boolean,
       const data = await def.build(p.raw, prisma);
       buildable.push({ rowNum: p.rowNum, data });
     } catch (err) {
-      errors.push({ row: p.rowNum, message: err instanceof Error ? err.message : 'Invalid row' });
+      errors.push({ row: p.rowNum, message: friendlyErrorMessage(err) });
     }
   }
 
@@ -146,7 +161,7 @@ export async function runImport(def: ImportDef, buffer: Buffer, commit: boolean,
         await def.create(b.data, prisma, actorId);
         created++;
       } catch (err) {
-        result.errors.push({ row: b.rowNum, message: err instanceof Error ? err.message : 'Create failed' });
+        result.errors.push({ row: b.rowNum, message: friendlyErrorMessage(err) });
       }
     }
     result.created = created;

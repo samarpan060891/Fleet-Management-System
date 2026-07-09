@@ -315,6 +315,7 @@ model Store {
   id             String    @id @default(uuid())
   code           String    @unique
   name           String
+  description    String?
   emirate        String
   address        String?
   contact        String?

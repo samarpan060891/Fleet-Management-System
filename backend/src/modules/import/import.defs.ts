@@ -153,13 +153,24 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
     columns: [
       { key: 'code', label: 'Code', required: true, example: 'DXB01' },
       { key: 'name', label: 'Name', required: true, example: 'Dubai Festival City' },
+      { key: 'description', label: 'Description' },
       { key: 'emirate', label: 'Emirate', required: true, example: 'Dubai' },
       { key: 'address', label: 'Address' },
       { key: 'contact', label: 'Contact' },
       { key: 'deliveryWindow', label: 'Delivery Window' },
     ],
     build: async (row) => row,
-    create: async (data, db, actorId) => (await db.store.create({ data: withAudit(data, actorId) as Prisma.StoreUncheckedCreateInput })).id,
+    // Upsert by code so re-importing a sheet (e.g. to update address/contact)
+    // updates the existing store instead of failing on the unique code constraint.
+    create: async (data, db, actorId) => {
+      const { code, ...rest } = data as { code: string } & Record<string, unknown>;
+      const row = await db.store.upsert({
+        where: { code },
+        create: withAudit({ code, ...rest }, actorId) as Prisma.StoreUncheckedCreateInput,
+        update: { ...rest, updatedBy: actorId },
+      });
+      return row.id;
+    },
   },
 
   employees: {

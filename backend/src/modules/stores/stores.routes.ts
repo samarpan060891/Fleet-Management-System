@@ -5,6 +5,7 @@ import { crudRouter } from '../../lib/crud';
 const createSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
+  description: z.string().optional(),
   emirate: z.string().min(1),
   address: z.string().optional(),
   contact: z.string().optional(),
@@ -17,6 +18,6 @@ export const storesRouter = crudRouter({
   entityName: 'stores',
   createSchema,
   updateSchema: createSchema.partial(),
-  searchFields: ['code', 'name', 'emirate'],
+  searchFields: ['code', 'name', 'description', 'emirate'],
   orderBy: { code: 'asc' },
 });
