@@ -8,6 +8,7 @@ import { authorize } from '../../middleware/authorize';
 import { validate } from '../../middleware/validate';
 import { asyncHandler } from '../../middleware/errorHandler';
 import { computeVehicleTco, resolvePeriod } from '../costs/costs.service';
+import { getSetting } from '../settings/settings.service';
 import { NotFound } from '../../lib/errors';
 
 export const reportsRouter = Router();
@@ -55,9 +56,11 @@ reportsRouter.get(
   })
 );
 
-// Vehicle master list (Excel) — the full fleet as currently shown on the
-// Vehicles page. Gated on vehicles:read (not reports:read) since it's the
-// same data as that page, just as a download.
+// Vehicle master list (Excel) — a management summary sheet plus full
+// line-level detail per vehicle (ownership/financials/incidents/compliance/
+// maintenance/tyres), everything shown across the Vehicles, Costs and
+// Compliance screens rolled into one download. Gated on vehicles:read (not
+// reports:read) since it's the same data as the Vehicles page, just exported.
 reportsRouter.get(
   '/vehicles.xlsx',
   authorize('vehicles', 'read'),
@@ -65,12 +68,85 @@ reportsRouter.get(
     const where: Record<string, unknown> = { isActive: true };
     if (req.query.status === 'active') where.status = { not: 'disposed' };
     if (req.query.status === 'disposed') where.status = 'disposed';
+    const defaultLife = await getSetting('depreciation.usefulLifeYears');
+    const now = dayjs();
     const vehicles = await prisma.vehicle.findMany({
       where,
       orderBy: { plateNumber: 'asc' },
-      include: { store: { select: { code: true, name: true } } },
+      include: {
+        store: { select: { code: true, name: true } },
+        purchase: true,
+        documents: { where: { isActive: true, expiryDate: { not: null } } },
+        jobCards: { where: { isActive: true }, select: { totalCost: true } },
+        tyres: { where: { isActive: true, scrapDate: null }, select: { fitmentDate: true } },
+        _count: { select: { incidents: { where: { isActive: true } } } },
+      },
     });
+
+    // Per-vehicle line data, computed once and reused for both the summary
+    // roll-up and the detail sheet.
+    const lines = vehicles.map((v) => {
+      const purchasePrice = v.purchase ? Number(v.purchase.purchasePrice) : null;
+      const purchaseDate = v.purchase?.purchaseDate ?? null;
+      const residual = Number(v.residualValue ?? v.purchase?.residualValue ?? 0);
+      const lifeYears = v.usefulLifeYears ?? v.purchase?.usefulLifeYears ?? defaultLife;
+      const ageYears = purchaseDate ? now.diff(dayjs(purchaseDate), 'day') / 365 : null;
+      const lifePendingYears = ageYears != null ? Math.max(0, lifeYears - ageYears) : null;
+      let bookValue: number | null = null;
+      let accumulatedDep: number | null = null;
+      if (purchasePrice != null && purchasePrice > 0 && ageYears != null) {
+        const annual = lifeYears > 0 ? Math.max(0, purchasePrice - residual) / lifeYears : 0;
+        accumulatedDep = Math.min(Math.max(0, purchasePrice - residual), +(annual * ageYears).toFixed(2));
+        bookValue = +(purchasePrice - accumulatedDep).toFixed(2);
+      }
+      const maintenanceCost = v.jobCards.reduce((s, j) => s + Number(j.totalCost ?? 0), 0);
+      const pendingDocs = v.documents.filter((d) => d.expiryDate! < now.toDate());
+      const latestTyreFitment = v.tyres.reduce<Date | null>((max, t) => {
+        if (!t.fitmentDate) return max;
+        return !max || t.fitmentDate > max ? t.fitmentDate : max;
+      }, null);
+      const tyreLifeDays = latestTyreFitment ? now.diff(dayjs(latestTyreFitment), 'day') : null;
+      return {
+        v, purchasePrice, purchaseDate, ageYears, lifeYears, lifePendingYears, bookValue, accumulatedDep,
+        maintenanceCost, incidentCount: v._count.incidents, pendingDocs, latestTyreFitment, tyreLifeDays,
+      };
+    });
+
     const wb = new ExcelJS.Workbook();
+
+    // --- Management summary sheet ---
+    const sum = wb.addWorksheet('Summary');
+    sum.columns = [{ key: 'label', width: 34 }, { key: 'value', width: 20 }];
+    const statusCounts = lines.reduce<Record<string, number>>((acc, l) => {
+      acc[l.v.status] = (acc[l.v.status] ?? 0) + 1;
+      return acc;
+    }, {});
+    const withPrice = lines.filter((l) => l.purchasePrice != null && l.purchasePrice > 0);
+    const withPendingCompliance = lines.filter((l) => l.pendingDocs.length > 0);
+    const ages = lines.filter((l) => l.ageYears != null).map((l) => l.ageYears!);
+    const summaryRows: [string, string | number][] = [
+      ['Fleet Management System — Vehicle Report', ''],
+      ['Generated', now.format('DD/MM/YYYY HH:mm')],
+      ['', ''],
+      ['Fleet size', lines.length],
+      ...Object.entries(statusCounts).map(([s, c]) => [`  • ${s}`, c] as [string, number]),
+      ['', ''],
+      ['Total purchase value (AED)', +withPrice.reduce((s, l) => s + (l.purchasePrice ?? 0), 0).toFixed(2)],
+      ['Total book value post-depreciation (AED)', +withPrice.reduce((s, l) => s + (l.bookValue ?? 0), 0).toFixed(2)],
+      ['Total accumulated depreciation (AED)', +withPrice.reduce((s, l) => s + (l.accumulatedDep ?? 0), 0).toFixed(2)],
+      ['Average vehicle age (years)', ages.length ? +(ages.reduce((s, a) => s + a, 0) / ages.length).toFixed(1) : ''],
+      ['', ''],
+      ['Total maintenance cost to date (AED)', +lines.reduce((s, l) => s + l.maintenanceCost, 0).toFixed(2)],
+      ['Total incidents (all time)', lines.reduce((s, l) => s + l.incidentCount, 0)],
+      ['Vehicles with pending (expired) compliance', `${withPendingCompliance.length} of ${lines.length}`],
+      ['', ''],
+      ['See "Vehicles" sheet for full line-level detail.', ''],
+    ];
+    for (const [label, value] of summaryRows) sum.addRow({ label, value });
+    sum.getCell('A1').font = { bold: true, size: 14 };
+    sum.getRow(4).font = { bold: true };
+
+    // --- Line-level detail sheet ---
     const ws = wb.addWorksheet('Vehicles');
     ws.columns = [
       { header: 'Plate Number', key: 'plate', width: 16 },
@@ -81,22 +157,49 @@ reportsRouter.get(
       { header: 'Vehicle Type', key: 'type', width: 20 },
       { header: 'Ownership', key: 'ownership', width: 16 },
       { header: 'Colour', key: 'colour', width: 12 },
-      { header: 'VIN / Chassis', key: 'vin', width: 20 },
+      { header: 'Chassis Number (VIN)', key: 'vin', width: 20 },
+      { header: 'Engine Number', key: 'engine', width: 18 },
       { header: 'Current Odometer (km)', key: 'odo', width: 18 },
       { header: 'Status', key: 'status', width: 14 },
       { header: 'Depot / Store', key: 'store', width: 24 },
+      { header: 'Purchase Price (AED)', key: 'price', width: 16 },
+      { header: 'Date of Purchase', key: 'purchDate', width: 14 },
+      { header: 'Age (years)', key: 'age', width: 12 },
+      { header: 'Useful Life (years)', key: 'life', width: 14 },
+      { header: 'Life Pending (years)', key: 'lifePending', width: 14 },
+      { header: 'Book Value Post-Depreciation (AED)', key: 'bookValue', width: 20 },
+      { header: 'Incident Count', key: 'incidents', width: 14 },
+      { header: 'Pending Compliances', key: 'pendingCount', width: 16 },
+      { header: 'Pending Compliance Docs', key: 'pendingDocs', width: 26 },
+      { header: 'Maintenance Cost to Date (AED)', key: 'maintCost', width: 20 },
+      { header: 'Last Tyre Change', key: 'tyreDate', width: 16 },
+      { header: 'Tyre Life (days since change)', key: 'tyreLife', width: 18 },
       { header: 'Warranty End', key: 'warranty', width: 14 },
     ];
-    for (const v of vehicles) {
+    for (const l of lines) {
+      const v = l.v;
       ws.addRow({
         plate: v.plateNumber, emirate: v.plateEmirate, make: v.make, model: v.model, year: v.year,
-        type: v.vehicleType, ownership: v.ownership, colour: v.colour ?? '', vin: v.vin ?? '',
+        type: v.vehicleType, ownership: v.ownership, colour: v.colour ?? '', vin: v.vin ?? '', engine: v.engineNumber ?? '',
         odo: v.currentOdometer, status: v.status,
         store: v.store ? `${v.store.code} · ${v.store.name}` : '',
+        price: l.purchasePrice ?? '',
+        purchDate: l.purchaseDate ? dayjs(l.purchaseDate).format('DD/MM/YYYY') : '',
+        age: l.ageYears != null ? +l.ageYears.toFixed(1) : '',
+        life: l.lifeYears,
+        lifePending: l.lifePendingYears != null ? +l.lifePendingYears.toFixed(1) : '',
+        bookValue: l.bookValue ?? '',
+        incidents: l.incidentCount,
+        pendingCount: l.pendingDocs.length,
+        pendingDocs: l.pendingDocs.map((d) => d.docType).join(', '),
+        maintCost: +l.maintenanceCost.toFixed(2),
+        tyreDate: l.latestTyreFitment ? dayjs(l.latestTyreFitment).format('DD/MM/YYYY') : '',
+        tyreLife: l.tyreLifeDays ?? '',
         warranty: v.warrantyEndDate ? dayjs(v.warrantyEndDate).format('DD/MM/YYYY') : '',
       });
     }
     ws.getRow(1).font = { bold: true };
+
     xlsxHeaders(res, 'vehicles.xlsx');
     await wb.xlsx.write(res);
     res.end();
