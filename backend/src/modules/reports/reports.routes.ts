@@ -55,6 +55,54 @@ reportsRouter.get(
   })
 );
 
+// Vehicle master list (Excel) — the full fleet as currently shown on the
+// Vehicles page. Gated on vehicles:read (not reports:read) since it's the
+// same data as that page, just as a download.
+reportsRouter.get(
+  '/vehicles.xlsx',
+  authorize('vehicles', 'read'),
+  asyncHandler(async (req, res) => {
+    const where: Record<string, unknown> = { isActive: true };
+    if (req.query.status === 'active') where.status = { not: 'disposed' };
+    if (req.query.status === 'disposed') where.status = 'disposed';
+    const vehicles = await prisma.vehicle.findMany({
+      where,
+      orderBy: { plateNumber: 'asc' },
+      include: { store: { select: { code: true, name: true } } },
+    });
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Vehicles');
+    ws.columns = [
+      { header: 'Plate Number', key: 'plate', width: 16 },
+      { header: 'Emirate', key: 'emirate', width: 12 },
+      { header: 'Make', key: 'make', width: 14 },
+      { header: 'Model', key: 'model', width: 14 },
+      { header: 'Year', key: 'year', width: 8 },
+      { header: 'Vehicle Type', key: 'type', width: 20 },
+      { header: 'Ownership', key: 'ownership', width: 16 },
+      { header: 'Colour', key: 'colour', width: 12 },
+      { header: 'VIN / Chassis', key: 'vin', width: 20 },
+      { header: 'Current Odometer (km)', key: 'odo', width: 18 },
+      { header: 'Status', key: 'status', width: 14 },
+      { header: 'Depot / Store', key: 'store', width: 24 },
+      { header: 'Warranty End', key: 'warranty', width: 14 },
+    ];
+    for (const v of vehicles) {
+      ws.addRow({
+        plate: v.plateNumber, emirate: v.plateEmirate, make: v.make, model: v.model, year: v.year,
+        type: v.vehicleType, ownership: v.ownership, colour: v.colour ?? '', vin: v.vin ?? '',
+        odo: v.currentOdometer, status: v.status,
+        store: v.store ? `${v.store.code} · ${v.store.name}` : '',
+        warranty: v.warrantyEndDate ? dayjs(v.warrantyEndDate).format('DD/MM/YYYY') : '',
+      });
+    }
+    ws.getRow(1).font = { bold: true };
+    xlsxHeaders(res, 'vehicles.xlsx');
+    await wb.xlsx.write(res);
+    res.end();
+  })
+);
+
 // Monthly cost report (Excel) — per-vehicle TCO for the period.
 reportsRouter.get(
   '/costs.xlsx',

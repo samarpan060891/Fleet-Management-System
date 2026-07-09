@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { GridColDef, GridActionsCellItem } from '@mui/x-data-grid';
-import { Chip, Tabs, Tab, Box, Alert, Typography, Card, CardContent, CardActions, IconButton, Stack } from '@mui/material';
+import { Chip, Tabs, Tab, Box, Alert, Typography, Card, CardContent, CardActions, IconButton, Stack, Button } from '@mui/material';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import SellIcon from '@mui/icons-material/Sell';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import CrudListPage from '../components/CrudListPage';
 import FormDialog, { FieldDef } from '../components/FormDialog';
 import VehicleHistoryDrawer from '../components/VehicleHistoryDrawer';
@@ -15,6 +16,7 @@ import { useLookups, apiError } from '../hooks/useLookups';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { titleCase } from '../lib/text';
+import { downloadFile } from '../lib/download';
 
 const TYPES = ['light', 'sedan', 'pickup', 'truck_3_7t', 'bus', 'van'];
 const OWNERSHIP = ['owned', 'leased', 'rented'];
@@ -148,6 +150,11 @@ export default function Vehicles() {
           columns={activeColumns} fields={fields} importable
           filterRows={(r) => r.status !== 'disposed'}
           onRowClick={(row) => setHistoryId(row.id)}
+          extraToolbar={
+            <Button variant="outlined" startIcon={<DownloadIcon />} onClick={() => downloadFile('/reports/vehicles.xlsx?status=active', 'vehicles.xlsx')}>
+              Export
+            </Button>
+          }
           toInitial={(r) => ({ ...r, purchaseDate: r.purchase?.purchaseDate, purchasePrice: r.purchase?.purchasePrice })}
           renderCard={(row, actions) => (
             <VehicleCard row={row} onEdit={actions.onEdit} onDelete={actions.onDelete} onClick={actions.onClick}
@@ -178,6 +185,11 @@ export default function Vehicles() {
             filterRows={(r) => r.status === 'disposed'}
             onRowClick={(row) => setHistoryId(row.id)}
             hideDelete hideAdd
+            extraToolbar={
+              <Button variant="outlined" startIcon={<DownloadIcon />} onClick={() => downloadFile('/reports/vehicles.xlsx?status=disposed', 'disposed-vehicles.xlsx')}>
+                Export
+              </Button>
+            }
           />
         </Box>
       )}

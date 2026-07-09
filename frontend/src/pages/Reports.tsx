@@ -4,6 +4,7 @@ import { PageHeader } from '../components/ui';
 import { downloadFile } from '../lib/download';
 
 const REPORTS = [
+  { label: 'Vehicle List', desc: 'Full fleet master list — plate, make/model, type, ownership, odometer, depot', path: '/reports/vehicles.xlsx?status=active', file: 'vehicles.xlsx' },
   { label: 'Fleet Compliance Status', desc: 'All document expiries with days-left', path: '/reports/compliance.xlsx', file: 'fleet-compliance.xlsx' },
   { label: 'Monthly Cost Report', desc: 'Per-vehicle TCO for the period', path: '/reports/costs.xlsx?period=mtd', file: 'monthly-cost.xlsx' },
   { label: 'Staff Transport Attendance', desc: 'Attendance for the current month', path: '/reports/attendance.xlsx', file: 'attendance.xlsx' },
