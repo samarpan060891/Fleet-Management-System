@@ -126,6 +126,7 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       // a new picklist option if it doesn't already match one.
       { key: 'vehicleType', label: 'Vehicle Type', required: true, example: 'van', note: 'Any value accepted — new types get default PM intervals until one is set' },
       { key: 'vin', label: 'VIN / Chassis', example: 'JT123...' },
+      { key: 'engineNumber', label: 'Engine Number', example: 'ENG-45210' },
       { key: 'colour', label: 'Colour', example: 'White' },
       { key: 'bodyType', label: 'Body Type', example: 'panel van' },
       { key: 'seatingCapacity', label: 'Seating Capacity', type: 'number' },
@@ -133,6 +134,8 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       { key: 'ownership', label: 'Ownership', example: 'owned', note: 'Any value accepted — only owned/leased/rented drive lease-expiry alerts' },
       { key: 'currentOdometer', label: 'Current Odometer (km)', type: 'number', example: '45000' },
       { key: 'storeCode', label: 'Depot/Store Code', note: 'Optional — an unrecognized code auto-creates a new store (you can fill in its details later)', example: 'DXB01' },
+      { key: 'purchasePrice', label: 'Purchase Price (AED)', type: 'number', example: '120000' },
+      { key: 'purchaseDate', label: 'Date of Purchase', type: 'date', note: 'Required if Purchase Price is given', example: '2023-01-15' },
       { key: 'warrantyEndDate', label: 'Warranty End Date', type: 'date', example: '2027-01-31' },
       { key: 'warrantyEndKm', label: 'Warranty End (km)', type: 'number' },
     ],
@@ -140,10 +143,22 @@ export const IMPORT_DEFS: Record<string, ImportDef> = {
       const storeId = await resolveStoreByCode(db, row.storeCode, actorId, commit, row.plateEmirate);
       const vehicleType = await ensureOptionListValue(db, 'vehicle.type', String(row.vehicleType));
       const ownership = row.ownership ? await ensureOptionListValue(db, 'vehicle.ownership', String(row.ownership)) : undefined;
-      const { storeCode, ...rest } = row;
-      return { ...rest, storeId, vehicleType, ownership };
+      if (row.purchasePrice != null && row.purchaseDate == null) throw new Error('Date of Purchase is required when Purchase Price is given');
+      const { storeCode, purchasePrice, purchaseDate, ...rest } = row;
+      return { ...rest, storeId, vehicleType, ownership, purchasePrice, purchaseDate };
     },
-    create: async (data, db, actorId) => (await db.vehicle.create({ data: withAudit(data, actorId) as Prisma.VehicleUncheckedCreateInput })).id,
+    create: async (data, db, actorId) => {
+      const { purchasePrice, purchaseDate, ...vehicleData } = data as { purchasePrice?: number; purchaseDate?: Date } & Record<string, unknown>;
+      const vehicle = await db.vehicle.create({
+        data: {
+          ...withAudit(vehicleData, actorId),
+          purchase: purchasePrice != null
+            ? { create: { purchaseDate: purchaseDate!, purchasePrice, createdBy: actorId } }
+            : undefined,
+        } as Prisma.VehicleUncheckedCreateInput,
+      });
+      return vehicle.id;
+    },
   },
 
   drivers: {

@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
+import dayjs from 'dayjs';
 import { titleCase } from '../lib/text';
 import {
   Drawer, Box, Typography, IconButton, Button, Chip, Divider, LinearProgress,
-  Accordion, AccordionSummary, AccordionDetails, Stack,
+  Accordion, AccordionSummary, AccordionDetails, Stack, Grid,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -10,6 +11,21 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { api } from '../api/client';
 import { fmtCurrency, fmtDate, fmtKm } from '../i18n';
 import { StatusChip } from './ui';
+
+// Same straight-line-to-residual formula used server-side for the fleet
+// asset value and the vehicle export (costs.service.ts / reports.routes.ts).
+function depreciation(purchasePrice: number, residual: number, lifeYears: number, ageYears: number) {
+  const annual = lifeYears > 0 ? Math.max(0, purchasePrice - residual) / lifeYears : 0;
+  const accumulated = Math.min(Math.max(0, purchasePrice - residual), annual * ageYears);
+  return { accumulated, bookValue: purchasePrice - accumulated };
+}
+
+const Stat = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  <Box>
+    <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
+    <Typography variant="body2" fontWeight={500}>{value ?? '—'}</Typography>
+  </Box>
+);
 
 async function downloadPdf(id: string, plate: string) {
   const token = localStorage.getItem('fleet_token');
@@ -46,6 +62,28 @@ export default function VehicleHistoryDrawer({ vehicleId, onClose }: { vehicleId
 
   const v = data?.vehicle;
 
+  // Management summary — derived client-side from the same consolidated
+  // history payload the sections below already render line-by-line.
+  const summary = (() => {
+    if (!v || !data) return null;
+    const purchasePrice = v.purchase?.purchasePrice != null ? Number(v.purchase.purchasePrice) : null;
+    const purchaseDate = v.purchase?.purchaseDate ?? null;
+    const residual = Number(v.residualValue ?? v.purchase?.residualValue ?? 0);
+    const lifeYears = v.usefulLifeYears ?? v.purchase?.usefulLifeYears ?? null;
+    const ageYears = purchaseDate ? dayjs().diff(dayjs(purchaseDate), 'day') / 365 : null;
+    const lifePendingYears = ageYears != null && lifeYears != null ? Math.max(0, lifeYears - ageYears) : null;
+    const dep = purchasePrice != null && purchasePrice > 0 && ageYears != null && lifeYears != null
+      ? depreciation(purchasePrice, residual, lifeYears, ageYears) : null;
+    const maintenanceCost = data.jobCards.reduce((s: number, j: any) => s + Number(j.totalCost ?? 0), 0);
+    const pendingDocs = data.documents.filter((d: any) => d.expiryDate && new Date(d.expiryDate) < new Date());
+    const activeTyres = data.tyres.filter((t: any) => !t.scrapDate && t.fitmentDate);
+    const latestTyreFitment = activeTyres.length
+      ? activeTyres.reduce((max: string, t: any) => (t.fitmentDate > max ? t.fitmentDate : max), activeTyres[0].fitmentDate)
+      : null;
+    const tyreLifeDays = latestTyreFitment ? dayjs().diff(dayjs(latestTyreFitment), 'day') : null;
+    return { purchasePrice, purchaseDate, ageYears, lifeYears, lifePendingYears, bookValue: dep?.bookValue ?? null, maintenanceCost, pendingDocs, tyreLifeDays };
+  })();
+
   return (
     <Drawer anchor="right" open={!!vehicleId} onClose={onClose} PaperProps={{ sx: { width: { xs: '100%', sm: 520 } } }}>
       <Box sx={{ p: 2 }}>
@@ -66,6 +104,9 @@ export default function VehicleHistoryDrawer({ vehicleId, onClose }: { vehicleId
                 {v.hasBranding && <Chip size="small" color="secondary" label="Branded" />}
                 {v.store && <Chip size="small" variant="outlined" label={v.store.code} />}
               </Stack>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                Chassis (VIN): {v.vin ?? '—'} · Engine: {v.engineNumber ?? '—'}
+              </Typography>
             </Box>
             <Button fullWidth variant="contained" startIcon={<DownloadIcon />} sx={{ mb: 2 }} onClick={() => downloadPdf(v.id, v.plateNumber)}>
               Download full history PDF
@@ -75,6 +116,28 @@ export default function VehicleHistoryDrawer({ vehicleId, onClose }: { vehicleId
               <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f4f6f8', borderRadius: 1 }}>
                 <Typography variant="caption" color="text.secondary">Next PM</Typography>
                 <Typography variant="body2">{fmtKm(v.pmState.nextPmKm)} · {fmtDate(v.pmState.nextPmDate)}</Typography>
+              </Box>
+            )}
+
+            {summary && (
+              <Box sx={{ mb: 2, p: 1.5, bgcolor: '#f4f6f8', borderRadius: 1 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Summary</Typography>
+                <Grid container spacing={1.5}>
+                  <Grid item xs={6}><Stat label="Purchase price" value={summary.purchasePrice != null ? fmtCurrency(summary.purchasePrice) : '—'} /></Grid>
+                  <Grid item xs={6}><Stat label="Date of purchase" value={summary.purchaseDate ? fmtDate(summary.purchaseDate) : '—'} /></Grid>
+                  <Grid item xs={6}><Stat label="Age" value={summary.ageYears != null ? `${summary.ageYears.toFixed(1)} yrs` : '—'} /></Grid>
+                  <Grid item xs={6}><Stat label="Life pending" value={summary.lifePendingYears != null ? `${summary.lifePendingYears.toFixed(1)} yrs` : '—'} /></Grid>
+                  <Grid item xs={6}><Stat label="Book value (post-dep.)" value={summary.bookValue != null ? fmtCurrency(summary.bookValue) : '—'} /></Grid>
+                  <Grid item xs={6}><Stat label="Maintenance cost to date" value={fmtCurrency(summary.maintenanceCost)} /></Grid>
+                  <Grid item xs={6}><Stat label="Incidents" value={data.incidents.length} /></Grid>
+                  <Grid item xs={6}><Stat label="Tyre life (since last change)" value={summary.tyreLifeDays != null ? `${summary.tyreLifeDays} days` : '—'} /></Grid>
+                  <Grid item xs={12}>
+                    <Stat
+                      label={`Pending compliances (${summary.pendingDocs.length})`}
+                      value={summary.pendingDocs.length ? summary.pendingDocs.map((d: any) => titleCase(String(d.docType))).join(', ') : 'None'}
+                    />
+                  </Grid>
+                </Grid>
               </Box>
             )}
 
