@@ -22,6 +22,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Loads every setting from .env.example's list (SMTP, storage/S3, alert
+    # schedule, rate limits, etc.) — anything also listed under `environment:`
+    # below takes precedence over the same key from this file.
+    env_file: .env
     environment:
       NODE_ENV: production
       PORT: 4000
