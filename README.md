@@ -135,6 +135,7 @@ detection, odometer validation, the RBAC permissions matrix, fine attribution
 /frontend       React (Vite) SPA, Dockerfile + nginx
 /docs           DATA_MODEL.md · API.md · DECISIONS.md · HANDOVER.md
 docker-compose.yml
+render.yaml
 .env.example
 ```
 
@@ -143,11 +144,14 @@ docker-compose.yml
 - [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) — entities and relationships
 - [`docs/API.md`](docs/API.md) — REST endpoints per module
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — architecture decisions & assumptions
-- [`docs/HANDOVER.md`](docs/HANDOVER.md) — operational handover for the IT team
-- [`docs/DEPLOY_RAILWAY.md`](docs/DEPLOY_RAILWAY.md) — deploy a live demo on Railway + PostgreSQL
+- [`docs/HANDOVER.md`](docs/HANDOVER.md) — full IT handover & go-live docket (self-hosted Docker Compose, security checklist, day-2 ops)
+- [`docs/DEPLOY_RENDER.md`](docs/DEPLOY_RENDER.md) — deploy on Render (managed, dashboard-only, no server/Docker skills needed)
+- [`docs/DEPLOY_RAILWAY.md`](docs/DEPLOY_RAILWAY.md) — deploy on Railway + PostgreSQL
 
-## Deploy a live demo (Railway)
+## Deploy a managed instance (Render or Railway)
 
 The repo-root `Dockerfile` builds a single web service (the API serving the built
-SPA) that pairs with a managed PostgreSQL. See
-[`docs/DEPLOY_RAILWAY.md`](docs/DEPLOY_RAILWAY.md) for a ~5-minute click-through.
+SPA) that pairs with a managed PostgreSQL — no server administration required.
+See [`docs/DEPLOY_RENDER.md`](docs/DEPLOY_RENDER.md) (Blueprint deploy via
+[`render.yaml`](render.yaml)) or [`docs/DEPLOY_RAILWAY.md`](docs/DEPLOY_RAILWAY.md)
+for a ~5-minute click-through on either platform.

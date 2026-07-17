@@ -347,17 +347,23 @@ merging your own changes.
 
 ## 12. Alternative: single-container / PaaS deployment
 
-The repo also ships a **single-container** build (repo-root `Dockerfile` +
-`railway.json`) that bundles the API and the built frontend into one
-process — this is what the current demo deployment on Railway uses. If your
-"own server" is actually a PaaS (Railway, Render, Fly.io, AWS App Runner,
-Azure Container Apps, Google Cloud Run) rather than a VM, this single image
-is usually the easier fit — point the platform at the repo-root `Dockerfile`,
-attach a managed PostgreSQL, and set the same environment variables from §14.
+The repo also ships a **single-container** build (repo-root `Dockerfile`)
+that bundles the API and the built frontend into one process — this is what
+the current demo deployment on Railway uses. If your "own server" is
+actually a PaaS (Railway, Render, Fly.io, AWS App Runner, Azure Container
+Apps, Google Cloud Run) rather than a VM, this single image is usually the
+easier fit — point the platform at the repo-root `Dockerfile`, attach a
+managed PostgreSQL, and set the same environment variables from §14. No
+Docker/server administration required — it's a dashboard-driven deploy.
 
-See [`docs/DEPLOY_RAILWAY.md`](DEPLOY_RAILWAY.md) for a concrete walkthrough
-of this path (Railway-specific, but the pattern — one Dockerfile, one env var
-list, one managed Postgres — transfers directly to any similar PaaS).
+- **Render** (recommended if IT needs an account they own outright,
+  independent of the current Railway account): see
+  [`docs/DEPLOY_RENDER.md`](DEPLOY_RENDER.md) — includes a ready-to-use
+  [`render.yaml`](../render.yaml) Blueprint for a one-click deploy, plus the
+  data-migration steps to bring data over from the existing deployment.
+- **Railway**: see [`docs/DEPLOY_RAILWAY.md`](DEPLOY_RAILWAY.md) — the
+  pattern (one Dockerfile, one env var list, one managed Postgres) is
+  identical across both, and transfers directly to any similar PaaS.
 
 ---
 
@@ -399,5 +405,6 @@ one inline). Grouped summary:
 - [`docs/DATA_MODEL.md`](DATA_MODEL.md) — entities and relationships
 - [`docs/API.md`](API.md) — REST endpoints per module
 - [`docs/DECISIONS.md`](DECISIONS.md) — architecture decisions & assumptions
-- [`docs/DEPLOY_RAILWAY.md`](DEPLOY_RAILWAY.md) — PaaS deployment walkthrough (§12)
+- [`docs/DEPLOY_RENDER.md`](DEPLOY_RENDER.md) — Render deployment walkthrough (§12), including data migration from Railway
+- [`docs/DEPLOY_RAILWAY.md`](DEPLOY_RAILWAY.md) — Railway deployment walkthrough (§12)
 - Root [`README.md`](../README.md) — quick start, demo logins, repo layout

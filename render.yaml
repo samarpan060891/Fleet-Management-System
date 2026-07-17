@@ -1,0 +1,50 @@
+# Render Blueprint — deploys the app as one web service (built from the
+# repo-root Dockerfile, same image used for Railway) plus a managed
+# PostgreSQL. In the Render dashboard: New → Blueprint → select this repo →
+# Render detects this file and provisions everything below in one go.
+#
+# Secrets marked `sync: false` are intentionally NOT stored here — Render
+# will prompt you to fill them in via the dashboard on first deploy instead
+# of committing them to the repo.
+#
+# See docs/DEPLOY_RENDER.md for the full walkthrough.
+
+services:
+  - type: web
+    name: fleet-management
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter        # free tier works for a demo, but sleeps when idle — use starter+ for real use
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fleet-postgres
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        sync: false      # fill in after first deploy once you know the assigned .onrender.com URL / custom domain
+      - key: EMAIL_DRY_RUN
+        value: "true"
+      - key: SEED_ON_START
+        value: "true"    # set to "false" once real data is loaded — see docs/HANDOVER.md §8
+      - key: SEED_ADMIN_EMAIL
+        value: admin@fleet.local
+      - key: SEED_ADMIN_PASSWORD
+        sync: false      # set a real password before first deploy
+      - key: FEATURE_INVENTORY
+        value: "false"
+      - key: FEATURE_WHATSAPP
+        value: "false"
+      - key: TZ
+        value: Asia/Dubai
+
+databases:
+  - name: fleet-postgres
+    databaseName: fleet_management
+    user: fleet
+    plan: starter
+    postgresMajorVersion: "16"
